@@ -56,12 +56,13 @@ const store = {
 const DEFAULTS = {
   version: "KJV", parallel: "", theme: "auto", font: "garamond", fontSize: 20, lineH: 1.7, showNums: true, paraMode: false,
   audioSource: "auto", voxlyBase: "audio/", voice: "", rate: 1, autoNext: true, followAudio: true,
+  redLetters: false, italics: false, showXrefs: true,
 };
 const S = Object.assign({}, DEFAULTS, store.get("settings", {}));
 const saveSettings = () => store.set("settings", S);
 let pos = store.get("pos", { b: 0, c: 0 });
 // annotations: highlights {key: colour}, bookmarks {key: time}, notes [{id, ref|null, title, body, tags, created, updated}]
-const A = Object.assign({ hl: {}, bm: {}, notes: [] }, store.get("annotations", {}));
+const A = Object.assign({ hl: {}, bm: {}, notes: [], threads: [] }, store.get("annotations", {}));
 const saveA = () => store.set("annotations", A);
 
 // ------------------------------------------------------------------ helpers
@@ -110,6 +111,8 @@ async function render(scrollToVerse) {
   const { b, c } = pos;
   if (c >= bible.books[b].length) pos.c = 0;
   const verses = bible.books[b][pos.c] || [];
+  // Red letters and the translators' added words come from the study layer (KJV only).
+  const rich = S.version === "KJV" && (S.redLetters || S.italics) && window.Study ? await Study.rich().catch(() => null) : null;
   const parVerses = par ? par.books[b][pos.c] || [] : null;
   const noteRefs = new Set(A.notes.filter((n) => n.ref).map((n) => refKey(n.ref.b, n.ref.c, n.ref.v)));
   const ico = (p) => `<svg aria-hidden="true" viewBox="0 0 24 24"><path d="${p}"/></svg>`;
@@ -125,8 +128,8 @@ async function render(scrollToVerse) {
   verses.forEach((t, i) => {
     const k = refKey(b, pos.c, i);
     const cls = ["v"]; if (A.hl[k]) cls.push("hl-" + A.hl[k]);
-    let text = esc(t);
-    const m = i === 0 && !par && t.match(/^([^A-Za-z]*)([A-Za-z])/);
+    let text = rich ? rich(b, pos.c, i) : esc(t);
+    const m = i === 0 && !par && !rich && t.match(/^([^A-Za-z]*)([A-Za-z])/);
     if (m) { cls.push("first"); text = `${esc(m[1])}<span class="dropcap" aria-hidden="true">${m[2]}</span>${esc(t.slice(m[0].length))}`; }
     html += `<span class="${cls.join(" ")}" data-v="${i}" role="button" tabindex="0" aria-label="Verse ${i + 1}. ${esc(t)}"><span class="n" aria-hidden="true">${i + 1}</span>${text}` +
       (noteRefs.has(k) ? `<span class="note-mark" aria-label="has note">${ico("M4 20h4L19 9l-4-4L4 16z")}</span>` : "") +
@@ -200,6 +203,7 @@ function showView(v) {
   $(".topbar").classList.remove("hide");
   window.scrollTo(0, 0);
   if (v === "notes") renderNotes();
+  if (v === "study") Study.show();
   if (v === "more") renderSettings();
   if (v === "search") setTimeout(() => $("#searchInput").focus(), 50);
 }
@@ -430,6 +434,7 @@ $("#importFile").onchange = async (e) => {
     const d = JSON.parse(await f.text()).annotations; if (!d) throw 0;
     const ids = new Set(A.notes.map((n) => n.id));
     Object.assign(A.hl, d.hl || {}); Object.assign(A.bm, d.bm || {});
+    const tids = new Set(A.threads.map((t) => t.id)); (d.threads || []).forEach((t) => { if (!tids.has(t.id)) A.threads.push(t); });
     (d.notes || []).forEach((n) => { if (!ids.has(n.id)) A.notes.push(n); });
     saveA(); renderNotes(); toast("Backup restored");
   } catch { toast("That file is not a Scripture backup"); }
@@ -640,6 +645,7 @@ async function renderSettings() {
   $("#audioSource").value = S.audioSource; $("#voxlyBase").value = S.voxlyBase;
   $("#autoNext").checked = S.autoNext; $("#followAudio").checked = S.followAudio;
   $("#showNums").checked = S.showNums; $("#paraMode").checked = S.paraMode;
+  $("#redLetters").checked = S.redLetters; $("#italics").checked = S.italics; $("#showXrefs").checked = S.showXrefs;
   fillVoices(); checkVoxly();
 }
 $("#versionList").onclick = async (e) => {
@@ -671,7 +677,7 @@ async function checkVoxly() {
 $("#audioSource").onchange = (e) => { S.audioSource = e.target.value; saveSettings(); if (player.active) player.load(player.b, player.c); };
 $("#voxlyBase").onchange = (e) => { S.voxlyBase = e.target.value.trim() || "audio/"; saveSettings(); checkVoxly(); };
 $("#voiceSelect").onchange = (e) => { S.voice = e.target.value; saveSettings(); const u = new SpeechSynthesisUtterance("In the beginning was the Word."); const v = speechSynthesis.getVoices().find((x) => x.voiceURI === S.voice) || bestVoice(); if (v) u.voice = v; u.rate = S.rate; speechSynthesis.cancel(); speechSynthesis.speak(u); };
-[["autoNext"], ["followAudio"], ["showNums", true], ["paraMode", true]].forEach(([k, rerender]) => ($("#" + k).onchange = (e) => { S[k] = e.target.checked; saveSettings(); if (rerender) render(); }));
+[["autoNext"], ["followAudio"], ["showNums", true], ["paraMode", true], ["redLetters", true], ["italics", true], ["showXrefs"]].forEach(([k, rerender]) => ($("#" + k).onchange = (e) => { S[k] = e.target.checked; saveSettings(); if (rerender) render(); }));
 
 // ------------------------------------------------------------------ start
 function opening() {

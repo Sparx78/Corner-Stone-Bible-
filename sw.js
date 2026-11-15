@@ -1,7 +1,7 @@
 /* Offline support: the app and the King James text are stored on the phone on the first visit.
    Other versions are stored when you download them (Settings). Voxly timing files are kept as they are played. */
-const SHELL = "scripture-shell-v2";
-const FILES = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "data/versions.json", "data/KJV.json",
+const SHELL = "scripture-shell-v3";
+const FILES = ["./", "index.html", "styles.css", "app.js", "study.js", "manifest.webmanifest", "data/versions.json", "data/KJV.json",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
   "fonts/EBGaramond-400.woff2", "fonts/EBGaramond-400i.woff2", "fonts/CormorantGaramond-500.woff2", "fonts/CormorantGaramond-500i.woff2"];
 
