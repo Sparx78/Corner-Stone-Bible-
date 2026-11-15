@@ -666,7 +666,7 @@ async function renderSettings() {
   $("#autoNext").checked = S.autoNext; $("#followAudio").checked = S.followAudio;
   $("#showNums").checked = S.showNums; $("#paraMode").checked = S.paraMode;
   $("#redLetters").checked = S.redLetters; $("#italics").checked = S.italics; $("#showXrefs").checked = S.showXrefs;
-  fillVoices(); checkVoxly(); offlineStatus();
+  fillVoices(); checkVoxly(); offlineStatus(); renderAudioBooks();
 }
 async function offlineStatus() {
   const have = (await Promise.all(VERSIONS.map((v) => isDownloaded(v.id)))).filter(Boolean).length;
@@ -676,6 +676,60 @@ async function offlineStatus() {
   $("#offlineStatus").className = "hint" + (all ? " ok" : "");
   $("#saveAll").hidden = all;
 }
+// ---- Voxly audio saved on the phone, a book at a time (in the voice chosen under Listening)
+const AUDIO_CACHE = "scripture-audio-saved";
+let audioIndex = null;
+async function loadAudioIndex() {
+  try { const r = await fetch((S.voxlyBase || "audio/").replace(/\/?$/, "/") + "index.json", { cache: "no-cache" }); audioIndex = r.ok ? await r.json() : audioIndex; } catch {}
+  return audioIndex;
+}
+const mb = (n) => (n / 1e6 < 10 ? (n / 1e6).toFixed(1) : Math.round(n / 1e6)) + " MB";
+async function savedChapters(book, chapters, voice) {
+  let n = 0;
+  try { const c = await caches.open(AUDIO_CACHE); for (const ch of chapters) if (await c.match(voxlyUrl(S.version, book, ch - 1, "mp3", voice))) n++; } catch {}
+  return n;
+}
+async function renderAudioBooks() {
+  const list = $("#audioBooks"), idx = await loadAudioIndex();
+  const books = idx && idx[S.version] && idx[S.version][S.voxlyVoice];
+  if (!books) { list.innerHTML = `<li class="muted">No ${VOXLY_VOICES[S.voxlyVoice]} recordings of the ${S.version} are on your website yet.</li>`; return; }
+  let h = "";
+  for (const [bk, info] of Object.entries(books).sort((a, b) => a[0] - b[0])) {
+    const b = +bk - 1, total = chapterCount(b), have = info.chapters.length, saved = await savedChapters(b, info.chapters, S.voxlyVoice);
+    const state = saved === have ? `<button class="ver-action done" data-unsave="${b}" aria-label="Remove ${esc(bookName(b))} audio from this phone">On phone ✓</button>`
+      : `<button class="ver-action" data-save="${b}" aria-label="Save ${esc(bookName(b))} audio to this phone">${saved ? "Finish" : "Save"} · ${mb(info.bytes)}</button>`;
+    h += `<li><span class="ab-name"><b>${esc(bookName(b))}</b><small>${VOXLY_VOICES[S.voxlyVoice]} · ${have === total ? (total === 1 ? "1 chapter" : "all " + total + " chapters") : have + " of " + total + " chapters"}${saved && saved < have ? " · " + saved + " saved" : ""}</small></span>${state}</li>`;
+  }
+  list.innerHTML = h;
+  if (navigator.storage && navigator.storage.estimate) { try { const e = await navigator.storage.estimate(); $("#audioStorage").textContent = `Using ${mb(e.usage || 0)} of this phone's storage for the app.`; } catch {} }
+}
+$("#audioBooks").onclick = async (e) => {
+  const sv = e.target.closest("[data-save]"), un = e.target.closest("[data-unsave]");
+  const voice = S.voxlyVoice;
+  if (sv) {
+    const b = +sv.dataset.save, chapters = audioIndex[S.version][voice][b + 1].chapters;
+    sv.disabled = true;
+    try {
+      const c = await caches.open(AUDIO_CACHE);
+      for (const [i, ch] of chapters.entries()) {
+        sv.textContent = `Saving ${i + 1} of ${chapters.length}…`;
+        for (const ext of ["json", "mp3"]) {
+          const url = voxlyUrl(S.version, b, ch - 1, ext, voice);
+          if (await c.match(url)) continue;
+          const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(url);
+          await c.put(url, r);
+        }
+      }
+      toast(`${bookName(b)} audio is saved on this phone`);
+    } catch { toast("Saving stopped — check the connection or free some space, then tap Finish"); }
+    renderAudioBooks();
+  }
+  if (un) {
+    const b = +un.dataset.unsave;
+    try { const c = await caches.open(AUDIO_CACHE); for (const ch of audioIndex[S.version][voice][b + 1].chapters) for (const ext of ["json", "mp3"]) await c.delete(voxlyUrl(S.version, b, ch - 1, ext, voice)); } catch {}
+    toast(`${bookName(b)} audio removed from this phone`); renderAudioBooks();
+  }
+};
 $("#saveAll").onclick = async () => {
   const btn = $("#saveAll"); btn.disabled = true;
   try {
@@ -732,7 +786,7 @@ async function checkVoxly() {
   el.className = "hint warn";
 }
 $("#audioSource").onchange = (e) => { S.audioSource = e.target.value; saveSettings(); if (player.active) player.load(player.b, player.c); };
-$("#voxlyVoice").onchange = (e) => { S.voxlyVoice = e.target.value; saveSettings(); checkVoxly(); if (player.active && !player.playing) player.load(player.b, player.c); };
+$("#voxlyVoice").onchange = (e) => { S.voxlyVoice = e.target.value; saveSettings(); checkVoxly(); renderAudioBooks(); if (player.active && !player.playing) player.load(player.b, player.c); };
 $("#voxlyBase").onchange = (e) => { S.voxlyBase = e.target.value.trim() || "audio/"; saveSettings(); checkVoxly(); };
 $("#voiceSelect").onchange = (e) => { S.voice = e.target.value; saveSettings(); fillVoices(); testVoice(); };
 $("#testVoice").onclick = testVoice;

@@ -451,3 +451,8 @@ i.added { color: var(--ink-2); }
 @media (prefers-color-scheme: dark) { :root[data-theme="auto"] .christ { color: #ff8a80; } }
 .tab span { font-size: 10px; }
 .voice-row { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 0 10px; } .voice-row .hint { flex: 1; margin: 0; } .voice-row .ghost-btn { flex: none; padding: 0 14px; }
+.audio-books { list-style: none; margin: 0; padding: 0; }
+.audio-books li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-bottom: 1px solid var(--line); }
+.audio-books li:last-child { border-bottom: 0; }
+.ab-name b { display: block; font-family: var(--display); font-size: 19px; font-weight: 600; }
+.ab-name small { font-size: 12.5px; color: var(--ink-2); }

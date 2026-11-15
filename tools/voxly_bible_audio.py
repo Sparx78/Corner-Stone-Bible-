@@ -164,6 +164,22 @@ def record_chapter(voice, version, book, chapter, verses, title=None, bitrate="6
     return "%d:%02d" % (duration // 60, duration % 60)
 
 
+def write_index():
+    """audio/index.json: which chapters are recorded, per version and voice, with sizes (the app reads it)."""
+    root = HERE / "audio"
+    idx = {}
+    for mp3 in sorted(root.glob("*/*/[0-9][0-9]/[0-9][0-9][0-9].mp3")):
+        if not mp3.with_suffix(".json").exists():
+            continue
+        version, voice, book = mp3.parts[-4], mp3.parts[-3], str(int(mp3.parts[-2]))
+        ch = idx.setdefault(version, {}).setdefault(voice, {}).setdefault(book, {"chapters": [], "bytes": 0})
+        ch["chapters"].append(int(mp3.stem))
+        ch["bytes"] += mp3.stat().st_size + mp3.with_suffix(".json").stat().st_size
+    tmp = root / "index.json.tmp"
+    tmp.write_text(json.dumps(idx, separators=(",", ":")), encoding="utf-8")
+    tmp.replace(root / "index.json")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     src = ap.add_mutually_exclusive_group(required=True)
@@ -175,6 +191,9 @@ def main():
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--voice", help="bf_emma (Voxly's default), bf_lily, bm_george, bm_daniel")
     ap.add_argument("--speed", type=float, help="0.9 is Voxly's default")
+    if "--index" in sys.argv:  # only rebuild audio/index.json
+        write_index()
+        return print("audio/index.json updated")
     a = ap.parse_args()
     if not a.all and not a.books:
         ap.error("say which books (--books John) or --all")
@@ -198,6 +217,7 @@ def main():
             titles = (bible.get("titles") or {}).get(str(b), {})
             for c, verses in enumerate(bible["books"][b]):
                 print("  %s %d: %s" % (BOOKS[b], c + 1, record_chapter(voice, a.version, b, c, verses, titles.get(str(c)))), flush=True)
+                write_index()
     finally:
         voice.close()
     print("Done in %d min. Copy the 'audio' folder next to index.html on your web host." % ((time.time() - t0) / 60))
