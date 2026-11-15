@@ -1,34 +1,36 @@
-"""Record the Bible with Voxly (Kokoro voice) on your computer, for the Scripture app.
+"""Record the Bible in your Voxly Kokoro voice, for the Scripture app.
 
-Run this on the Windows computer where Voxly is installed. For every chapter it asks Voxly's narration
-service (interface "voxly.narration/1", the same one Process Recorder uses) to read the chapter, one verse
-per section, and saves:
+Two ways to run it (both give identical files):
 
-    audio/<VERSION>/<book 01-66>/<chapter 001>.mp3    the chapter, read aloud
-    audio/<VERSION>/<book 01-66>/<chapter 001>.json   when each verse starts, so the app can follow along
+  On your Windows PC, through Voxly itself (uses your Voxly settings, like tyson_export.py):
+      python tools\\voxly_bible_audio.py --voxly C:\\G_Labs\\Voxly --books John
+  Straight through Kokoro (the same kokoro-onnx model Voxly uses), e.g. on a server:
+      python tools/voxly_bible_audio.py --kokoro-dir path/with/kokoro-v1.0.onnx --books John
 
-Then copy the "audio" folder next to the app on your web host (see VOXLY-AUDIO.md).
+Run it in the Python environment that has Voxly (or kokoro-onnx) installed. Needs FFmpeg for MP3.
 
-Examples (from the bible-app folder):
-    python tools/voxly_bible_audio.py --books John              # one book to try it out
-    python tools/voxly_bible_audio.py --books "Psalms,Proverbs" --voice bm_george --speed 0.9
-    python tools/voxly_bible_audio.py --all                     # the whole Bible (many hours; safe to stop and re-run)
+For every chapter it writes:
+    audio/<VERSION>/<voice>/<book 01-66>/<chapter 001>.mp3    the chapter, read aloud
+    audio/<VERSION>/<voice>/<book 01-66>/<chapter 001>.json   when each verse starts (exact: each verse is voiced separately)
+Copy the "audio" folder next to index.html on your web host. Chapters already recorded are skipped,
+so you can stop with Ctrl+C and run the same command again later.
 
-Chapters already recorded are skipped, so you can stop it at any time and run it again later.
-Needs FFmpeg installed for Voxly to make MP3 files (iPhones play MP3 everywhere; WAV files are far too large).
+Options: --books "Psalms,John" or --all; --voice bf_emma|bf_lily|bm_george|bm_daniel; --speed 0.9; --version KJV.
 """
 import argparse
-import hashlib
+import io
 import json
 import os
-import socket
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 import wave
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-INTERFACE = "voxly.narration/1"
 BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel",
          "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs",
          "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel",
@@ -36,192 +38,173 @@ BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "
          "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians",
          "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians", "1 Timothy", "2 Timothy", "Titus", "Philemon",
          "Hebrews", "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"]
-# How a heading is said aloud ("The Second Book of Samuel" would also do; this is plain and clear).
-SPOKEN = {"Psalms": "Psalm"}
+SPOKEN_BOOK = {"1": "First", "2": "Second", "3": "Third"}
+PAUSE_AFTER_VERSE = 0.35   # seconds of quiet between verses
+PAUSE_AFTER_HEADING = 0.6
 
 
-class VoxlyError(Exception):
-    pass
+def spoken_book(name):
+    m = re.match(r"([123]) (.+)", name)
+    return "%s %s" % (SPOKEN_BOOK[m.group(1)], m.group(2)) if m else name
 
 
-def state_dir():
-    if os.environ.get("VOXLY_STATE_DIR"):
-        return Path(os.environ["VOXLY_STATE_DIR"])
-    if sys.platform == "win32":
-        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "Voxly"
-    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "voxly"
+def speakable(text):
+    """What the voice is given. The words are the KJV's; only spelling that a voice would misread is adjusted."""
+    text = re.sub(r"\b(LORD|GOD|JEHOVAH|JAH)\b", lambda m: m.group(1).title(), text)   # not "L-O-R-D"
+    text = text.replace("–", "-").replace("’", "'")
+    return text
 
 
-def call(action, timeout=30, **kw):
-    p = state_dir() / "narration_service.json"
-    if not p.exists():
-        raise VoxlyError("Voxly's narration service is not running (no %s). Start it first: in the Voxly folder run\n"
-                         "  .venv\\Scripts\\python.exe -m Voxly.integrations.narration_service serve" % p)
-    info = json.loads(p.read_text(encoding="utf-8"))
-    req = dict(kw, action=action, token=info.get("token"))
-    try:
-        with socket.create_connection(("127.0.0.1", int(info["port"])), timeout=timeout) as s:
-            s.sendall((json.dumps(req) + "\n").encode("utf-8"))
-            buf = b""
-            while b"\n" not in buf:
-                chunk = s.recv(65536)
-                if not chunk:
-                    break
-                buf += chunk
-    except OSError as e:
-        raise VoxlyError("Could not reach Voxly's narration service: %s" % e)
-    resp = json.loads(buf.split(b"\n")[0].decode("utf-8"))
-    if not resp.get("ok"):
-        raise VoxlyError(resp.get("error") or "Voxly reported an error.")
-    return resp
+# ------------------------------------------------------------------ voices
+class VoxlyVoice:
+    """Your Voxly installation, loaded exactly as tyson_export.py does."""
+
+    def __init__(self, voxly_dir, settings_file, voice, speed):
+        root = Path(voxly_dir).resolve()
+        sys.path.insert(0, str(root))
+        os.chdir(root)  # Voxly resolves its model paths from its own folder
+        from Voxly.core.settings import load_settings
+        from Voxly.core.engine import Voxly
+        settings = load_settings(str(Path(settings_file).resolve() if settings_file else root / "settings.yaml"))
+        settings["voice_engine"] = "kokoro"
+        k = settings.setdefault("kokoro", {})
+        if voice:
+            k["voice"] = voice
+        if speed:
+            k["speed"] = speed
+        self.name = "Voxly Kokoro %s @ %s" % (k.get("voice"), k.get("speed"))
+        self.key = str(k.get("voice") or "voxly")
+        self.voxly = Voxly(settings=settings)
+        self.engine = self.voxly.voice_engine
+
+    def wav(self, text):
+        audio = self.engine.synthesize(text)
+        if not audio:
+            raise RuntimeError("Voxly produced no audio for: %s" % text[:60])
+        return audio
+
+    def close(self):
+        self.voxly.shutdown()
 
 
-def wav_seconds(path):
-    with wave.open(str(path), "rb") as w:
-        return w.getnframes() / float(w.getframerate())
+class KokoroVoice:
+    """The same kokoro-onnx model and voices Voxly's Kokoro engine loads."""
+
+    def __init__(self, model_dir, voice, speed):
+        from kokoro_onnx import Kokoro
+        d = Path(model_dir)
+        self.k = Kokoro(str(d / "kokoro-v1.0.onnx"), str(d / "voices-v1.0.bin"))
+        self.voice, self.speed = voice or "bf_emma", speed or 0.9
+        self.name = "Kokoro %s @ %s" % (self.voice, self.speed)
+        self.key = self.voice
+
+    def wav(self, text):
+        import numpy as np
+        samples, rate = self.k.create(text, voice=self.voice, speed=self.speed, lang="en-gb")
+        pcm = (np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(pcm)
+        return buf.getvalue()
+
+    def close(self):
+        pass
 
 
-def sections_for(book, chapter, verses, title=None):
-    heading = "%s, chapter %d." % (SPOKEN.get(BOOKS[book], BOOKS[book]), chapter + 1)
-    if BOOKS[book] == "Psalms":
-        heading = "Psalm %d." % (chapter + 1)
-    if title:
-        heading += " " + title
-    out = []
-    for i, text in enumerate(verses):
-        t = (heading + " " + text) if i == 0 else text
-        out.append({"id": "v%d" % (i + 1), "title": "%s %d:%d" % (BOOKS[book], chapter + 1, i + 1),
-                    "text": t, "sha256": hashlib.sha256(t.encode("utf-8")).hexdigest()})
-    return out
-
-
-def section_durations(folder, base, manifest, n):
-    """Seconds of speech per verse, from the manifest if Voxly gives them, else from the per-section WAV files."""
-    secs = manifest.get("sections") or []
-    if len(secs) == n and all(isinstance(s.get("duration_s"), (int, float)) for s in secs):
-        return [float(s["duration_s"]) for s in secs]
-    sdir = folder / (base + " - sections")
-    if len(secs) == n and all(s.get("file") for s in secs):
-        files = [Path(s["file"]) if Path(s["file"]).is_absolute() else sdir / s["file"] for s in secs]
-        if all(f.exists() for f in files):
-            return [wav_seconds(f) for f in files]
-    files = sorted(sdir.glob("*.wav")) if sdir.is_dir() else []
-    if len(files) == n:
-        return [wav_seconds(f) for f in files]
-    return None
-
-
-def record_chapter(version, book, chapter, verses, voice, speed, keep_wav, title=None):
-    folder = HERE / "audio" / version / ("%02d" % (book + 1))
+# ------------------------------------------------------------------ recording
+def record_chapter(voice, version, book, chapter, verses, title=None, bitrate="64k"):
+    folder = HERE / "audio" / version / voice.key / ("%02d" % (book + 1))
     base = "%03d" % (chapter + 1)
     mp3, timing = folder / (base + ".mp3"), folder / (base + ".json")
     if mp3.exists() and timing.exists():
-        return "skipped"
+        return "already recorded"
     folder.mkdir(parents=True, exist_ok=True)
-    sections = sections_for(book, chapter, verses, title)
-    request = {
-        "interface": INTERFACE,
-        "document": {"title": "%s %d" % (BOOKS[book], chapter + 1), "project": "Scripture", "document_type": "bible chapter",
-                     "document_version": version, "review_status": "reviewed", "produced_by": "Scripture app"},
-        "voice": voice, "speed": speed, "lang": "en-gb",
-        "sections": sections,
-        "output": {"directory": str(folder.resolve()), "basename": base, "formats": ["wav", "mp3"]},
-    }
-    call("narrate", request=request)
-    mpath = folder / (base + ".narration.json")
-    t0, last = time.time(), None
-    while True:
-        time.sleep(1.5)
-        if mpath.exists():
-            try:
-                m = json.loads(mpath.read_text(encoding="utf-8"))
-            except ValueError:
-                continue
-            st = m.get("status")
-            done = sum(1 for s in m.get("sections", []) if s.get("status") == "ok")
-            if (st, done) != last:
-                print("    %s: %s (%d of %d verses)" % (BOOKS[book] + " %d" % (chapter + 1), st, done, len(sections)), flush=True)
-                last = (st, done)
-            if st in ("complete", "failed", "incomplete", "cancelled"):
-                break
-        if time.time() - t0 > 1800:
-            raise VoxlyError("Voxly took more than 30 minutes on %s %d." % (BOOKS[book], chapter + 1))
-    if m.get("status") != "complete":
-        raise VoxlyError("Voxly could not finish %s %d: %s" % (BOOKS[book], chapter + 1, m.get("message")))
-    files = m.get("files") or {}
-    if not files.get("mp3") or not (folder / files["mp3"]).exists():
-        raise VoxlyError("Voxly made no MP3 (is FFmpeg installed?). The WAV is in %s" % folder)
-    made = folder / files["mp3"]
-    if made != mp3:
-        made.replace(mp3)
-    wav = folder / files["wav"] if files.get("wav") else None
-    total = float(m.get("duration_s") or (wav_seconds(wav) if wav and wav.exists() else 0))
-    durs = section_durations(folder, base, m, len(sections))
-    if durs and total:
-        # Spread any pause Voxly puts between sections evenly, so verse starts line up with the combined file.
-        gap = max(0.0, (total - sum(durs)) / max(1, len(durs) - 1)) if len(durs) > 1 else 0.0
-        starts, t = [], 0.0
-        for d in durs:
-            starts.append(round(t, 2))
-            t += d + gap
-    else:
-        # Fallback: estimate from the length of each verse (follow-along will be approximate).
-        lengths = [len(s["text"]) for s in sections]
-        whole = float(sum(lengths)) or 1.0
-        starts, t = [], 0.0
-        for n in lengths:
-            starts.append(round(t, 2))
-            t += total * n / whole
-    timing.write_text(json.dumps({"version": version, "book": book + 1, "chapter": chapter + 1, "voice": voice,
-                                  "speed": speed, "duration": round(total, 2), "verses": starts,
-                                  "exact": bool(durs)}), encoding="utf-8")
-    if not keep_wav:
-        for p in [wav, folder / (base + " - sections")]:
-            if p and p.is_file():
-                p.unlink()
-            elif p and p.is_dir():
-                for f in p.iterdir():
-                    f.unlink()
-                p.rmdir()
-    return "recorded" + ("" if durs else " (verse timing estimated)")
+    heading = ("Psalm %d." % (chapter + 1)) if BOOKS[book] == "Psalms" else "%s, chapter %d." % (spoken_book(BOOKS[book]), chapter + 1)
+    if title:
+        heading += " " + title
+    fmt, frames, starts = None, [], []
+
+    def add(wav_bytes, pause):
+        nonlocal fmt
+        with wave.open(io.BytesIO(wav_bytes), "rb") as r:
+            f = (r.getnchannels(), r.getsampwidth(), r.getframerate())
+            if fmt is None:
+                fmt = f
+            if f != fmt:
+                raise RuntimeError("The voice changed audio format part-way through a chapter.")
+            frames.append(r.readframes(r.getnframes()))
+        frames.append(b"\0" * int(fmt[2] * pause) * fmt[0] * fmt[1])
+
+    def now():
+        return sum(len(x) for x in frames) / float(fmt[0] * fmt[1] * fmt[2]) if fmt else 0.0
+
+    add(voice.wav(speakable(heading)), PAUSE_AFTER_HEADING)
+    for text in verses:
+        starts.append(round(now(), 2))      # the verse starts exactly where its own audio starts
+        add(voice.wav(speakable(text)), PAUSE_AFTER_VERSE)
+    starts[0] = 0.0                          # the heading belongs to verse 1 for follow-along
+    duration = now()
+    with tempfile.TemporaryDirectory() as tmp:
+        wav_path = Path(tmp) / "chapter.wav"
+        with wave.open(str(wav_path), "wb") as w:
+            w.setnchannels(fmt[0])
+            w.setsampwidth(fmt[1])
+            w.setframerate(fmt[2])
+            w.writeframes(b"".join(frames))
+        part = Path(tmp) / "chapter.mp3"
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav_path), "-ac", "1", "-b:a", bitrate,
+                        "-metadata", "title=%s %d" % (BOOKS[book], chapter + 1), "-metadata", "artist=%s" % voice.name,
+                        "-metadata", "album=%s" % version, str(part)], check=True)
+        shutil.move(str(part), str(mp3))
+    timing.write_text(json.dumps({"version": version, "book": book + 1, "chapter": chapter + 1, "voice": voice.name,
+                                  "duration": round(duration, 2), "verses": starts, "exact": True}), encoding="utf-8")
+    return "%d:%02d" % (duration // 60, duration % 60)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--version", default="KJV", help="Bible version to read (default KJV)")
-    ap.add_argument("--books", help='Comma-separated book names, e.g. "John,Romans,Psalms"')
-    ap.add_argument("--all", action="store_true", help="Record every book")
-    ap.add_argument("--voice", default="bm_george", help="Kokoro voice: bm_george, bm_daniel, bf_emma, bf_lily ...")
-    ap.add_argument("--speed", type=float, default=0.95)
-    ap.add_argument("--keep-wav", action="store_true", help="Keep Voxly's WAV files as well as the MP3")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--voxly", help="Your Voxly folder, e.g. C:\\G_Labs\\Voxly (run in Voxly's Python environment)")
+    src.add_argument("--kokoro-dir", help="Folder with kokoro-v1.0.onnx and voices-v1.0.bin")
+    ap.add_argument("--settings", help="Voxly settings file (default: settings.yaml in the Voxly folder)")
+    ap.add_argument("--version", default="KJV")
+    ap.add_argument("--books", help='e.g. "John,Psalms,Romans"')
+    ap.add_argument("--all", action="store_true")
+    ap.add_argument("--voice", help="bf_emma (Voxly's default), bf_lily, bm_george, bm_daniel")
+    ap.add_argument("--speed", type=float, help="0.9 is Voxly's default")
     a = ap.parse_args()
     if not a.all and not a.books:
         ap.error("say which books (--books John) or --all")
+    if not shutil.which("ffmpeg"):
+        raise SystemExit("FFmpeg is needed to make MP3 files. Install it (winget install ffmpeg) and try again.")
     bible = json.loads((HERE / "data" / (a.version + ".json")).read_text(encoding="utf-8"))
     if a.all:
         books = list(range(66))
     else:
-        names = [b.strip().lower() for b in a.books.split(",")]
         books = []
-        for n in names:
-            match = [i for i, b in enumerate(BOOKS) if b.lower() == n or b.lower().replace(" ", "") == n.replace(" ", "")]
-            if not match:
+        for n in [x.strip().lower().replace(" ", "") for x in a.books.split(",")]:
+            hit = [i for i, b in enumerate(BOOKS) if b.lower().replace(" ", "") == n]
+            if not hit:
                 ap.error("unknown book: %s" % n)
-            books += match
-    st = call("status", timeout=10)
-    if not (st.get("kokoro") or {}).get("available"):
-        raise SystemExit("Voxly is running but its Kokoro voice is unavailable: %s" % (st.get("kokoro") or {}).get("words"))
-    for b in books:
-        print("%s (%d chapters)" % (BOOKS[b], len(bible["books"][b])), flush=True)
-        for c, verses in enumerate(bible["books"][b]):
-            title = (bible.get("titles") or {}).get(str(b), {}).get(str(c))
-            try:
-                print("  %s %d: %s" % (BOOKS[b], c + 1, record_chapter(a.version, b, c, verses, a.voice, a.speed,
-                                                                      a.keep_wav, title)), flush=True)
-            except VoxlyError as e:
-                raise SystemExit("Stopped: %s\nRun the same command again to carry on from here." % e)
-    print("Done. Copy the 'audio' folder to your web host next to index.html.")
+            books += hit
+    voice = VoxlyVoice(a.voxly, a.settings, a.voice, a.speed) if a.voxly else KokoroVoice(a.kokoro_dir, a.voice, a.speed)
+    print("Voice:", voice.name, flush=True)
+    t0 = time.time()
+    try:
+        for b in books:
+            titles = (bible.get("titles") or {}).get(str(b), {})
+            for c, verses in enumerate(bible["books"][b]):
+                print("  %s %d: %s" % (BOOKS[b], c + 1, record_chapter(voice, a.version, b, c, verses, titles.get(str(c)))), flush=True)
+    finally:
+        voice.close()
+    print("Done in %d min. Copy the 'audio' folder next to index.html on your web host." % ((time.time() - t0) / 60))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit("Stopped. Run the same command again to carry on.")

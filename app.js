@@ -56,7 +56,7 @@ const store = {
 const DEFAULTS = {
   version: "KJV", parallel: "", theme: "auto", font: "garamond", fontSize: 20, lineH: 1.7, showNums: true, paraMode: false,
   audioSource: "auto", voxlyBase: "audio/", voice: "", rate: 1, autoNext: true, followAudio: true,
-  redLetters: false, italics: false, showXrefs: true,
+  redLetters: false, italics: false, showXrefs: true, voxlyVoice: "bf_emma",
 };
 const S = Object.assign({}, DEFAULTS, store.get("settings", {}));
 const saveSettings = () => store.set("settings", S);
@@ -491,14 +491,20 @@ function unlockAudio() {
 }
 const SPEEDS = [0.75, 0.9, 1, 1.15, 1.25, 1.5, 1.75, 2];
 const pad = (n, w) => String(n).padStart(w, "0");
-const voxlyUrl = (ver, b, c, ext) => { let base = S.voxlyBase || "audio/"; if (!base.endsWith("/")) base += "/"; return `${base}${ver}/${pad(b + 1, 2)}/${pad(c + 1, 3)}.${ext}`; };
+// Voxly recordings, one folder per Kokoro voice: audio/<VERSION>/<voice>/<book>/<chapter>.mp3
+const VOXLY_VOICES = { bf_emma: "Emma", bm_george: "George" };
+const voxlyUrl = (ver, b, c, ext, voice = S.voxlyVoice) => { let base = S.voxlyBase || "audio/"; if (!base.endsWith("/")) base += "/"; return `${base}${ver}/${voice}/${pad(b + 1, 2)}/${pad(c + 1, 3)}.${ext}`; };
 async function voxlyTiming(b, c) {
   if (S.audioSource === "device") return null;
-  try {
-    const r = await fetch(voxlyUrl(S.version, b, c, "json"), { cache: "no-cache" });
-    if (!r.ok) return null;
-    const t = await r.json(); return Array.isArray(t.verses) ? t : null;
-  } catch { return null; }
+  // the chosen voice first; if that chapter is not recorded in it yet, the other voice
+  for (const voice of [S.voxlyVoice, ...Object.keys(VOXLY_VOICES).filter((v) => v !== S.voxlyVoice)]) {
+    try {
+      const r = await fetch(voxlyUrl(S.version, b, c, "json", voice), { cache: "no-cache" });
+      if (!r.ok) continue;
+      const t = await r.json(); if (Array.isArray(t.verses)) { t.voiceKey = voice; return t; }
+    } catch {}
+  }
+  return null;
 }
 
 const player = {
@@ -508,7 +514,7 @@ const player = {
     this.verses = (await getBible(S.version)).books[b][c];
     this.timing = await voxlyTiming(b, c);
     this.engine = this.timing ? "voxly" : S.audioSource === "voxly" ? null : "device";
-    if (this.timing) { audio.src = voxlyUrl(S.version, b, c, "mp3"); audio.playbackRate = S.rate; }
+    if (this.timing) { audio.src = voxlyUrl(S.version, b, c, "mp3", this.timing.voiceKey); audio.playbackRate = S.rate; }
     $("#playerTitle").textContent = `${bookName(b)} ${c + 1}`;
     this.status(this.engine ? `${this.engine === "voxly" ? "Voxly" : "iPhone voice"} · ${S.version}` : "No Voxly recording for this chapter");
     this.mediaSession();
@@ -594,7 +600,7 @@ audio.addEventListener("timeupdate", () => {
   if (i !== player.verse) { player.verse = i; markReading(i); if (player.sleepCheck()) return; }
   const dur = audio.duration || player.timing.duration || 1;
   $("#playerBar").style.width = (t / dur) * 100 + "%";
-  player.status(`Voxly · verse ${i + 1} of ${player.verses.length} · ${fmtTime(t)} / ${fmtTime(dur)}`);
+  player.status(`Voxly ${VOXLY_VOICES[player.timing.voiceKey] || ""} · verse ${i + 1} of ${player.verses.length} · ${fmtTime(t)} / ${fmtTime(dur)}`);
 });
 audio.addEventListener("ended", () => { if (player.engine === "voxly" && player.playing) player.chapterEnded(); });
 audio.addEventListener("error", () => { if (player.engine === "voxly" && player.active) { player.status("Could not play the Voxly recording"); player.playing = false; player.updateBtn(); } });
@@ -656,7 +662,7 @@ async function renderSettings() {
       ${v.builtin ? '<span class="ver-action done">Built in</span>' : have ? `<button class="ver-action done" data-remove="${v.id}" aria-label="Remove ${esc(v.name)} from this phone">On phone ✓</button>` : `<button class="ver-action" data-get="${v.id}" aria-label="Download ${esc(v.name)}">Get · ${Math.round((v.size || 4e6) / 1e6 / 3)} MB</button>`}</li>`;
   }
   $("#versionList").innerHTML = h;
-  $("#audioSource").value = S.audioSource; $("#voxlyBase").value = S.voxlyBase;
+  $("#audioSource").value = S.audioSource; $("#voxlyBase").value = S.voxlyBase; $("#voxlyVoice").value = S.voxlyVoice;
   $("#autoNext").checked = S.autoNext; $("#followAudio").checked = S.followAudio;
   $("#showNums").checked = S.showNums; $("#paraMode").checked = S.paraMode;
   $("#redLetters").checked = S.redLetters; $("#italics").checked = S.italics; $("#showXrefs").checked = S.showXrefs;
@@ -715,13 +721,18 @@ if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => { if (c
 async function checkVoxly() {
   const el = $("#voxlyStatus");
   try {
-    const r = await fetch(voxlyUrl("KJV", 42, 2, "json"), { cache: "no-cache" });
-    if (r.ok) { el.textContent = "Voxly recordings found ✓ (checked John 3)."; el.className = "hint ok"; return; }
+    for (const [b, c] of [[pos.b, pos.c], [42, 0], [18, 22]]) { // this chapter, John 1, Psalm 23
+      for (const v of [S.voxlyVoice, ...Object.keys(VOXLY_VOICES).filter((x) => x !== S.voxlyVoice)]) {
+        const r = await fetch(voxlyUrl("KJV", b, c, "json", v), { cache: "no-cache" });
+        if (r.ok) { el.textContent = `Voxly recordings found ✓ (${VOXLY_VOICES[v]}, ${bookName(b)} ${c + 1}). Chapters not recorded in your chosen voice use the other voice, then the iPhone voice.`; el.className = "hint ok"; return; }
+      }
+    }
   } catch {}
   el.innerHTML = "No Voxly recordings found at this address yet — the iPhone voice is used meanwhile. See <b>VOXLY-AUDIO.md</b> to make them on your computer.";
   el.className = "hint warn";
 }
 $("#audioSource").onchange = (e) => { S.audioSource = e.target.value; saveSettings(); if (player.active) player.load(player.b, player.c); };
+$("#voxlyVoice").onchange = (e) => { S.voxlyVoice = e.target.value; saveSettings(); checkVoxly(); if (player.active && !player.playing) player.load(player.b, player.c); };
 $("#voxlyBase").onchange = (e) => { S.voxlyBase = e.target.value.trim() || "audio/"; saveSettings(); checkVoxly(); };
 $("#voiceSelect").onchange = (e) => { S.voice = e.target.value; saveSettings(); fillVoices(); testVoice(); };
 $("#testVoice").onclick = testVoice;
