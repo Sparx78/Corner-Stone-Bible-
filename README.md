@@ -42,10 +42,17 @@ iCloud Drive, Mail…). **Restore backup** brings them back on a new phone.
 > Always open it from the Home Screen icon. Safari tabs and the Home Screen app keep separate storage on iOS,
 > so notes made in a Safari tab will not appear in the app.
 
-## Updating the app
+## Updates and sync
 
-Upload the folder again to the same site. When you change any app file, also change the version name at the top of
-`sw.js` (`scripture-shell-v1` → `v2`) so phones fetch the new files; they pick it up the next time the app is opened twice.
+**Updates are automatic.** Changes merged into `main` are published by GitHub Pages; the app fetches the new version in
+the background and switches to it by itself (straight away, or the next time you open it if you are listening or
+writing a note). When you change app files, also change the version name at the top of `sw.js`.
+
+**Sync between devices** (Settings → Sync between devices): notes, highlights, bookmarks, threads and path progress are
+kept in one secret Gist on your GitHub account and merged automatically (the newest change wins; deletions carry across).
+Each device needs a GitHub key with only the `gist` permission, made once at
+<https://github.com/settings/tokens/new?scopes=gist&description=Scripture%20app%20sync> (choose *No expiration*).
+The key stays on the device. A secret Gist is unlisted, not encrypted: anyone given its exact address could read it.
 
 ## Files
 

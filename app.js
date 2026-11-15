@@ -62,8 +62,9 @@ const S = Object.assign({}, DEFAULTS, store.get("settings", {}));
 const saveSettings = () => store.set("settings", S);
 let pos = store.get("pos", { b: 0, c: 0 });
 // annotations: highlights {key: colour}, bookmarks {key: time}, notes [{id, ref|null, title, body, tags, created, updated}]
-const A = Object.assign({ hl: {}, bm: {}, notes: [], threads: [] }, store.get("annotations", {}));
-const saveA = () => store.set("annotations", A);
+// hlT: when each highlight was set; tomb: when something was deleted (so a deletion syncs to your other devices)
+const A = Object.assign({ hl: {}, hlT: {}, bm: {}, notes: [], threads: [], pathRead: {}, tomb: {} }, store.get("annotations", {}));
+const saveA = () => { store.set("annotations", A); if (window.onAnnotationsChanged) window.onAnnotationsChanged(); };
 
 // ------------------------------------------------------------------ helpers
 const $ = (s, el = document) => el.querySelector(s);
@@ -336,12 +337,14 @@ function openVerse(v) {
 }
 $$(".hl-dot").forEach((d) => (d.onclick = () => {
   const k = refKey(selected.b, selected.c, selected.v);
-  if (d.dataset.hl) A.hl[k] = d.dataset.hl; else delete A.hl[k];
+  A.hlT = A.hlT || {}; A.tomb = A.tomb || {};
+  if (d.dataset.hl) { A.hl[k] = d.dataset.hl; A.hlT[k] = Date.now(); } else { delete A.hl[k]; delete A.hlT[k]; A.tomb["hl:" + k] = Date.now(); }
   saveA(); closeSheet(true); render(selected.v); toast(d.dataset.hl ? "Highlighted" : "Highlight removed");
 }));
 $("#actBookmark").onclick = () => {
   const k = refKey(selected.b, selected.c, selected.v);
-  if (A.bm[k]) delete A.bm[k]; else A.bm[k] = Date.now();
+  A.tomb = A.tomb || {};
+  if (A.bm[k]) { delete A.bm[k]; A.tomb["bm:" + k] = Date.now(); } else A.bm[k] = Date.now();
   saveA(); closeSheet(true); render(selected.v); toast(A.bm[k] ? "Bookmarked" : "Bookmark removed");
 };
 const verseText = (r, id = S.version) => bibles[id].books[r.b][r.c][r.v];
@@ -391,7 +394,7 @@ $("#noteSave").onclick = () => {
 };
 $("#noteDelete").onclick = () => {
   if (!editing.id || !confirm("Delete this note?")) return;
-  A.notes = A.notes.filter((x) => x.id !== editing.id); saveA(); store.set("draft", null); closeSheet(); toast("Note deleted");
+  A.notes = A.notes.filter((x) => x.id !== editing.id); A.tomb = A.tomb || {}; A.tomb["note:" + editing.id] = Date.now(); saveA(); store.set("draft", null); closeSheet(); toast("Note deleted");
   currentView === "notes" ? renderNotes() : render();
 };
 $("#newJournal").onclick = () => openNote(null, null);
@@ -907,7 +910,16 @@ function opening() {
   // When a new version of the app has been downloaded, offer it straight away instead of on the next launch.
   const hadVersion = "serviceWorker" in navigator && !!navigator.serviceWorker.controller; // false on the very first visit
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then((reg) => {
-    const offer = () => { if (hadVersion) $("#updateBar").hidden = false; };
+    // A new version installs itself: straight away if you are not listening or writing, otherwise the next time you open the app.
+    let pending = false;
+    const busy = () => player.playing || (openSheetEl && openSheetEl.id === "sheet-note");
+    const reload = () => { // once: never twice within a few seconds
+      try { if (Date.now() - +(sessionStorage.getItem("scripture.updated") || 0) < 8000) return; sessionStorage.setItem("scripture.updated", Date.now()); } catch {}
+      location.reload();
+    };
+    const offer = () => { if (!hadVersion) return; pending = true; if (!busy()) reload(); };
+    document.addEventListener("visibilitychange", () => { if (pending && !busy()) reload(); });
+    setInterval(() => { if (pending && !busy() && document.hidden === false && !openSheetEl) reload(); }, 60000);
     if (reg.waiting) offer();
     reg.addEventListener("updatefound", () => { const w = reg.installing; if (w) w.addEventListener("statechange", () => { if (w.state === "installed" || w.state === "activated") offer(); }); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });

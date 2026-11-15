@@ -756,7 +756,7 @@ function threadAction(act, el) {
   else if (act === "remove") t.items.splice(i, 1);
   else if (act === "note") { const n = prompt("Your note on " + refLabel(t.items[i].ref), t.items[i].note || ""); if (n == null) return; t.items[i].note = n.trim(); }
   else if (act === "rename") { const n = prompt("Thread name", t.title); if (!n || !n.trim()) return; t.title = n.trim(); }
-  else if (act === "delete") { if (!confirm(`Delete the thread “${t.title}”? The verses themselves are not affected.`)) return; A.threads = A.threads.filter((x) => x !== t); saveA(); back(); return; }
+  else if (act === "delete") { if (!confirm(`Delete the thread “${t.title}”? The verses themselves are not affected.`)) return; A.threads = A.threads.filter((x) => x !== t); A.tomb = A.tomb || {}; A.tomb["thread:" + t.id] = Date.now(); saveA(); back(); return; }
   else if (act === "share") {
     const text = t.title + "\n\n" + t.items.map((it) => `${refLabel(it.ref)} — ${kjvText(it.ref)}${it.note ? "\n   (" + it.note + ")" : ""}`).join("\n\n");
     if (navigator.share) navigator.share({ title: t.title, text }).catch(() => {}); else navigator.clipboard.writeText(text).then(() => toast("Copied"));

@@ -549,3 +549,11 @@ button.book-title::after { content: " ⓘ"; font-size: .8em; letter-spacing: 0; 
 .sxs .ref { display: flex; align-items: center; justify-content: space-between; }
 .sxs .vt { font-size: 16.5px; margin-top: 2px; }
 .sxs .connect { margin-top: 6px; padding-top: 0; border-top: 0; }
+
+/* Sync */
+.steps { margin: 0 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--ink); }
+.steps li { margin-bottom: 4px; }
+.steps a { color: var(--gold); font-weight: 600; }
+.steps code { font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+.sync-row { display: flex; gap: 8px; align-items: center; }
+.sync-row .field { margin: 0; flex: 1; }

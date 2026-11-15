@@ -97,6 +97,24 @@
         <p class="hint">All six versions and the Study tools, about 12 MB. Do this once on Wi-Fi; after that the whole app works in Airplane Mode.</p>
       </div>
 
+      <h2 class="group-title">Sync between devices</h2>
+      <div class="card" id="syncBox">
+        <div id="syncOff">
+          <p class="hint">Keep notes, highlights, bookmarks, threads and path progress the same on your phone and computer, automatically. They are kept in a secret Gist on your own GitHub account. Set up once on each device:</p>
+          <ol class="steps">
+            <li><a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=Scripture%20app%20sync" target="_blank" rel="noopener">Open GitHub's key page</a> (signed in to GitHub). “gist” is already ticked: leave it as the only box ticked.</li>
+            <li>Set <b>Expiration</b> to <b>No expiration</b>, then press <b>Generate token</b> at the bottom.</li>
+            <li>Copy the key (it starts with <code>ghp_</code>), paste it here and press Connect. Use the same key on your other device, or make another.</li>
+          </ol>
+          <div class="sync-row"><input id="syncToken" class="field" type="password" placeholder="ghp_…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="GitHub key"><button class="ver-action" id="syncConnect">Connect</button></div>
+        </div>
+        <div id="syncOn" hidden>
+          <p class="hint" id="syncStatus" role="status"></p>
+          <div class="row-btns tight"><button class="ghost-btn" id="syncNowBtn">Sync now</button><button class="ghost-btn danger" id="syncOffBtn">Turn off on this device</button></div>
+          <p class="hint">It syncs by itself when you open the app and a few seconds after any change.</p>
+        </div>
+      </div>
+
       <h2 class="group-title">Bible audio offline</h2>
       <div class="card">
         <p class="hint" id="audioOfflineHint">Save the Voxly recordings of a book to listen without internet, for example on a flight.</p>
@@ -274,5 +292,6 @@
 <script src="app.js"></script>
 <script src="books.js"></script>
 <script src="study.js"></script>
+<script src="sync.js"></script>
 </body>
 </html>
