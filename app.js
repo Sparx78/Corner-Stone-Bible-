@@ -232,7 +232,13 @@ function closeSheet(silent) {
 }
 $("#scrim").onclick = () => closeSheet();
 $$("[data-close]").forEach((b) => (b.onclick = () => closeSheet()));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeSheet();
+  // On a computer: the arrow keys turn the chapter while reading (not while typing or with a sheet open)
+  if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && currentView === "read" && !openSheetEl && !e.target.closest("input, textarea, select") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1);
+  }
+});
 // drag a sheet down by its grabber to close it
 $$(".sheet").forEach((sh) => {
   let y0 = null;
