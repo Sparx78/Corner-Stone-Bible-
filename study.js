@@ -315,6 +315,7 @@ function verseHTML(top) {
     <p class="study-verse">${wordsLine}</p>
     <p class="hint">Tap any word to follow it through scripture. <i class="added">Words like this</i> were added by the translators to make the English read; they are not in the Hebrew or Greek.</p>
     <div class="row-btns tight"><button class="ghost-btn listen" data-listen="${k}">▶ Listen to this verse</button><button class="ghost-btn" data-listenfrom="${k}">▶ Read on from here</button><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button><button class="ghost-btn full" data-book="${ref.b}">About the book of ${esc(bookName(ref.b))} ›</button><button class="ghost-btn full" data-passage="${ref.b}.${ref.c}.${ref.c}" data-title="${esc(bookName(ref.b) + " " + (ref.c + 1))}">What scripture says of ${esc(bookName(ref.b))} ${ref.c + 1}, before and after ›</button></div>
+    ${S.showXrefs !== false && ST.xrefs ? explainHTML({ ...ref, v2: ref.v }, "Scripture explains this verse") : ""}
     <h2 class="group-title">In its place</h2>
     <div class="card ctx-card">${contextHTML(ref, 4, 4)}</div>
     <h2 class="group-title">The words of this verse</h2>
@@ -369,7 +370,33 @@ function sharedRun(a, b) { // the longest run of words two passages both contain
   const words = A.slice(end - best, end);
   return words.filter((w) => !FILLER.has(w)).length >= 2 ? words.join(" ") : null;
 }
+const connectMemo = new Map();
 function connect(aRef, bRef) {
+  const key = [aRef.b, aRef.c, aRef.v, aRef.v2, bRef.b, bRef.c, bRef.v, bRef.v2].join(".");
+  if (connectMemo.has(key)) return connectMemo.get(key);
+  const out = connectRaw(aRef, bRef); connectMemo.set(key, out); return out;
+}
+// A quotation with small changes inside it ("In thee shall all nations be blessed" for "in thee shall all families of
+// the earth be blessed"): the most words two passages share in the same order, never more than 3 words apart.
+function gappedQuote(a, b) {
+  const A = toks(a), B = toks(b), n = A.length, m = B.length, G = 4;
+  if (!n || !m || n * m > 40000) return null;
+  const dp = Array.from({ length: n }, () => new Int16Array(m)), from = new Map(); let best = 0, bi = -1, bj = -1;
+  for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) {
+    if (A[i] !== B[j]) continue;
+    let v = 1, f = null;
+    for (let x = Math.max(0, i - G); x < i; x++) for (let y = Math.max(0, j - G); y < j; y++) if (dp[x][y] + 1 > v) { v = dp[x][y] + 1; f = [x, y]; }
+    dp[i][j] = v; if (f) from.set(i * 10000 + j, f);
+    if (v > best) { best = v; bi = i; bj = j; }
+  }
+  if (best < 5) return null;
+  const idx = []; let cur = [bi, bj];
+  while (cur) { idx.unshift(cur[0]); cur = from.get(cur[0] * 10000 + cur[1]); }
+  const words = idx.map((i) => A[i]), solid = words.filter((w) => !FILLER.has(w)).length;
+  if (solid < 1 || (best < 6 && solid < 2)) return null;
+  return idx.map((i, k) => (k && i - idx[k - 1] > 1 ? "… " : "") + A[i]).join(" ");
+}
+function connectRaw(aRef, bRef) {
   const a = toRange(aRef), b = toRange(bRef), ta = rangeText(a), tb = rangeText(b);
   const wa = rangeWords(a), wb = rangeWords(b), shared = [];
   for (const [w, e] of wa) if (wb.has(w)) {
@@ -378,7 +405,7 @@ function connect(aRef, bRef) {
   }
   shared.sort((x, y) => (y.same ? 1 : 0) - (x.same ? 1 : 0));
   const f = ta.match(FORMULA) || tb.match(FORMULA);
-  const c = { quote: sharedRun(ta, tb), formula: f && f[0], shared };
+  const c = { quote: sharedRun(ta, tb) || gappedQuote(ta, tb), formula: f && f[0], shared };
   c.score = (c.quote ? 100 : 0) + (c.formula ? 20 : 0) + shared.reduce((n, x) => n + (x.same ? 5 : 2), 0);
   c.kind = c.quote ? "quote" : c.formula ? "fulfil" : shared.length ? "words" : "subject";
   return c;
@@ -392,6 +419,47 @@ function connectHTML(c, max = 6) {
     : `<span class="cx">${esc(x.w)}</span>`));
   if (!chips.length) chips.push(`<span class="cx none">no words in common: linked by subject</span>`);
   return `<div class="connect"><span class="cx-label">Connected by</span>${chips.join("")}</div>`;
+}
+
+// ------------------------------------------------------------------ scripture explaining scripture
+// The verses that point to a passage or that it points to (both directions of the cross-references).
+function neighbours(r) {
+  r = toRange(r); const out = new Map(), rev = buildReverse(), inside = (x) => x.b === r.b && x.c === r.c && x.v >= r.v && x.v <= r.v2;
+  for (let v = r.v; v <= r.v2; v++) ((ST.xrefs[r.b][r.c][v] || "").split(" ").filter(Boolean)).forEach((t) => {
+    const [a, z] = t.split("-").map(parseKey); const x = z && z.b === a.b && z.c === a.c ? { ...a, v2: z.v } : { ...a, v2: a.v };
+    if (!inside(x)) out.set(refKey(x.b, x.c, x.v), x); });
+  (rev.get(r.b * 1000 + r.c) || []).forEach(([b, c, v, tv, tvEnd]) => { if (tv <= r.v2 && tvEnd >= r.v) { /* the ranges overlap */ const x = { b, c, v, v2: v }; if (!inside(x)) out.set(refKey(b, c, v), x); } });
+  return [...out.values()];
+}
+// Where scripture itself repeats, quotes or fulfils this passage: the Bible explaining the Bible.
+function explainers(r, max = 3) {
+  const { rfreq } = buildIndex(), rare = (sh) => sh.some((s) => (rfreq[s.w.toLowerCase()] || 0) <= 60);
+  return neighbours(r).filter((x) => !(x.b === r.b && x.c === r.c)).map((x) => ({ x, c: connect(x, r) }))   // explained from elsewhere
+    .filter(({ x, c }) => c.quote                                                    // repeated or quoted
+      || (c.formula && c.shared.length >= 1)                                          // "it is written" / "fulfilled", with words in common
+      || c.shared.filter((s) => s.same).length >= 3                                   // three of the same Hebrew or Greek words
+      || ((x.b >= NT_START) !== (r.b >= NT_START) && (c.shared.length >= 2 || rare(c.shared))))   // across the testaments: shared or rare words
+    .sort((p, q) => q.c.score - p.c.score || q.x.b - p.x.b)
+    .reduce((out, e, _, all) => { // keep a place for the other testament when it speaks to this passage
+      if (out.length < max) { const cross = (x) => (x.b >= NT_START) !== (r.b >= NT_START);
+        if (out.length === max - 1 && !out.some((o) => cross(o.x))) { const c = all.find((o) => cross(o.x)); out.push(c || e); } else out.push(e); }
+      return out; }, []);
+}
+// Verses that are linked to both passages: scripture's own bridge between them.
+function bridges(a, b, max = 2) {
+  const nb = new Map(neighbours(b).map((x) => [refKey(x.b, x.c, x.v), x]));
+  return neighbours(a).filter((x) => nb.has(refKey(x.b, x.c, x.v)))
+    .map((x) => ({ x, s: connect(x, a).score + connect(x, b).score }))
+    .filter((e) => e.s > 0).sort((p, q) => q.s - p.s).slice(0, max).map((e) => e.x);
+}
+function verseCard(x, about, cls = "") {
+  const k = refKey(x.b, x.c, x.v), label = refLabel(x) + (x.v2 > x.v ? "–" + (x.v2 + 1) : "");
+  const text = bibles.KJV.books[x.b][x.c].slice(x.v, x.v2 + 1).join(" ");
+  return `<div class="sxs ${cls}"><div class="ref"><button class="link" data-verse="${k}">${esc(label)}</button><button class="mini play" data-listen="${k}" aria-label="Listen to ${esc(label)}">▶</button></div><p class="vt">${esc(text)}</p>${about ? connectHTML(about, 4) : ""}</div>`;
+}
+function explainHTML(r, title) {
+  const ex = explainers(r);
+  return ex.length ? `<div class="sxs-box"><p class="sxs-title">${title}</p>${ex.map((e) => verseCard(e.x, e.c)).join("")}</div>` : "";
 }
 
 function xrefItem(t, src) {
@@ -502,10 +570,11 @@ function buildReverse() {
   ST.xrefs.forEach((book, b) => book.forEach((ch, c) => ch.forEach((line, v) => {
     if (!line) return;
     for (const t of line.split(" ")) {
-      const [tb, tc, tv] = t.split("-")[0].split(".").map(Number);
+      const [s0, e0] = t.split("-"), [tb, tc, tv] = s0.split(".").map(Number);
+      const end = e0 ? e0.split(".").map(Number) : null, tvEnd = end && end[0] === tb && end[1] === tc ? end[2] : tv;
       const key = tb * 1000 + tc;
       let list = reverseLinks.get(key); if (!list) reverseLinks.set(key, (list = []));
-      list.push([b, c, v, tv]);
+      list.push([b, c, v, tv, tvEnd]);
     }
   })));
   return reverseLinks;
@@ -621,7 +690,7 @@ function pathHTML(top) {
       const text = bibles.KJV.books[r.b][r.c].slice(r.v, r.v2 + 1).map((x, j) => `${r.v2 > r.v ? `<sup>${r.v + j + 1}</sup>` : ""}${esc(x)}`).join(" ");
       return `<li class="path-step ${read.has(i) ? "done" : ""}" id="step-${i}">
         <div class="ref"><button class="link" data-verse="${k}">${i + 1}. ${esc(t)}</button><span class="row-acts"><button class="mini play" data-steplisten="${i}" aria-label="Listen to ${esc(t)}">▶</button><button class="mini" data-ctx="1">Context</button><button class="mini ${read.has(i) ? "on" : ""}" data-stepread="${i}" aria-pressed="${read.has(i)}">${read.has(i) ? "✓ Read" : "Mark read"}</button></span></div>
-        <p class="vt">${text}</p>${i ? buildsOn(path.steps, i) : `<div class="builds first">The path begins here.</div>`}<div class="ctx" hidden>${contextHTML(r, 4, 4)}</div>
+        <p class="vt">${text}</p>${explainHTML(r, "Scripture explains this reading")}${i ? buildsOn(path.steps, i) : `<div class="builds first">The path begins here.</div>`}<div class="ctx" hidden>${contextHTML(r, 4, 4)}</div>
         <div class="step-more"><button class="link" data-verse="${k}">Study the words of ${esc(t.split("-")[0])} ›</button><button class="link" data-passage="${r.b}.${r.c}.${r.c}" data-title="${esc(bookName(r.b))} ${r.c + 1}">What scripture says of ${esc(bookName(r.b))} ${r.c + 1} ›</button></div></li>`; }).join("")}</ol>
     <p class="hint sources">A path only sets a reading order. Make your own with threads: tap any verse while reading and choose Add to thread.</p>`;
 }
@@ -629,8 +698,11 @@ function pathHTML(top) {
 function buildsOn(steps, i) {
   const here = refFrom(steps[i]); let best = null;
   for (let j = 0; j < i; j++) { const c = connect(refFrom(steps[j]), here); if (c.score > 0 && (!best || c.score > best.c.score)) best = { j, c }; }
-  if (!best) return `<div class="builds"><b>A new thread begins here:</b> no words shared with the readings before it.</div>`;
-  return `<div class="builds"><b>Builds on reading ${best.j + 1}, <a href="#step-${best.j}" class="link">${esc(steps[best.j])}</a></b>${connectHTML(best.c, 5)}</div>`;
+  // the scripture that joins this reading to the one before it, or to the one it builds on
+  const j = best ? best.j : i - 1, br = bridges(refFrom(steps[j]), here);
+  const bridge = br.length ? `<div class="sxs-box bridge"><p class="sxs-title">Scripture that joins reading ${j + 1} and this one</p>${br.map((x) => verseCard(x)).join("")}</div>` : "";
+  if (!best) return `<div class="builds"><b>A new thread begins here:</b> no words shared with the readings before it.</div>${bridge}`;
+  return `<div class="builds"><b>Builds on reading ${best.j + 1}, <a href="#step-${best.j}" class="link">${esc(steps[best.j])}</a></b>${connectHTML(best.c, 5)}</div>${bridge}`;
 }
 function markStep(i) {
   const top = stack[stack.length - 1]; i = +i;

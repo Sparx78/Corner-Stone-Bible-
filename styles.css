@@ -539,3 +539,13 @@ button.book-title::after { content: " ⓘ"; font-size: .8em; letter-spacing: 0; 
 .builds .connect { border-top: 0; padding-top: 0; margin-top: 6px; }
 .builds.first { font-style: italic; }
 .points { line-height: 1.4; }
+
+/* Scripture explaining scripture */
+.sxs-box { margin-top: 12px; padding: 10px 12px 4px; border-left: 3px solid var(--gold); border-radius: 4px 12px 12px 4px; background: color-mix(in srgb, var(--gold-soft) 55%, var(--surface)); }
+.sxs-box.bridge { border-left-color: color-mix(in srgb, var(--gold) 50%, var(--line)); background: var(--surface-2); }
+.sxs-title { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.sxs { padding: 6px 0 10px; }
+.sxs + .sxs { border-top: 1px dashed var(--line); }
+.sxs .ref { display: flex; align-items: center; justify-content: space-between; }
+.sxs .vt { font-size: 16.5px; margin-top: 2px; }
+.sxs .connect { margin-top: 6px; padding-top: 0; border-top: 0; }
