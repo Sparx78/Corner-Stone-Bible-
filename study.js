@@ -72,7 +72,25 @@ function openStudy(entry) {
   if (entry) stack = entry.type === "home" ? [entry] : [{ type: "home" }, entry];
   showView("study");
 }
+// What the Listen tab and "Listen to these verses" play, for the page on show.
+function pageList() {
+  const top = stack[stack.length - 1];
+  if (top.type === "word") return { refs: (top.list || []).slice(0, 200).map(([b, c, v]) => ({ b, c, v })), title: lexWord(top.num)[1] || "Word study" };
+  if (top.type === "thread") { const t = A.threads.find((x) => x.id === top.id); return t && { refs: t.items.map((i) => i.ref), title: t.title }; }
+  if (top.type === "verse" && S.showXrefs !== false && ST.xrefs) {
+    const r = top.ref, xr = (ST.xrefs[r.b][r.c][r.v] || "").split(" ").filter(Boolean).map((x) => parseKey(x.split("-")[0]));
+    return { refs: [r, ...xr], title: refLabel(r) + " and linked verses" };
+  }
+  return null;
+}
+function listenAll() { const l = pageList(); if (l && l.refs.length) player.playList(l.refs, l.title); }
 window.Study = {
+  listen() { // Listen tab while in Study: play this page's verses; false = nothing here to play
+    const top = stack[stack.length - 1];
+    if (top.type === "verse") { player.start(top.ref.b, top.ref.c, top.ref.v); return true; }
+    const l = pageList(); if (l && l.refs.length) { player.playList(l.refs, l.title); return true; }
+    return false;
+  },
   show: () => draw(), open: openStudy, threadSheet: openThreadSheet,
   async rich() { // returns (b, c, v) -> verse HTML with the words of Christ in red and added words in italics
     await loadStudy(false);
@@ -109,7 +127,7 @@ function crumbLabel(e) {
   return "Study";
 }
 studyPage.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
+  const t = e.target.closest("[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
   if (!t) return;
   const d = t.dataset;
   if (d.crumb) { stack = stack.slice(0, +d.crumb + 1); draw(); }
@@ -123,6 +141,9 @@ studyPage.addEventListener("click", (e) => {
   else if (d.filterR != null) { const top = stack[stack.length - 1]; top.r = top.r === d.filterR ? null : d.filterR; top.page = 1; draw(); }
   else if (d.ctx) { const box = t.closest("li").querySelector(".ctx"); box.hidden = !box.hidden; t.textContent = box.hidden ? "Context" : "Hide context"; }
   else if (d.tact) threadAction(d.tact, t);
+  else if (d.listen) { const r = parseKey(d.listen); player.start(r.b, r.c, r.v, true); }        // just this verse
+  else if (d.listenfrom) { const r = parseKey(d.listenfrom); player.start(r.b, r.c, r.v); }      // from here on
+  else if ("listenall" in d) listenAll();
 });
 
 // ------------------------------------------------------------------ home
@@ -192,6 +213,7 @@ function wordHTML(top) {
   let list = refs;
   if (top.book != null) list = list.filter((x) => x[0] === top.book);
   if (top.r) list = list.filter(([b, c, v]) => { let m; SEG.lastIndex = 0; const raw = ST.words[b][c][v]; while ((m = SEG.exec(raw))) if (m[2].split(" ").includes(n) && renderingOf(m[1]) === top.r) return true; return false; });
+  top.list = list;
   const shown = list.slice(0, top.page * 40);
   const lastRef = refs[refs.length - 1];
   return `<header class="word-head">
@@ -211,6 +233,7 @@ function wordHTML(top) {
     <div class="chips">${r.map(([w, c]) => `<button class="chip ${top.r === w ? "on" : ""}" data-filter-r="${esc(w)}" aria-pressed="${top.r === w}">${esc(w)} <small>${c}</small></button>`).join("")}</div>
     <h2 class="group-title">Where it is found</h2>
     <div class="dist" role="list" aria-label="Verses per book">${Object.entries(perBook).map(([b, c]) => `<button role="listitem" class="dist-row ${top.book === +b ? "on" : ""}" data-filter-book="${b}" aria-pressed="${top.book === +b}" aria-label="${esc(bookName(+b))}: ${c} verses"><span class="bn">${esc(shortName(+b))}</span><span class="bar"><i style="width:${(c / maxB) * 100}%"></i></span><span class="bc">${c}</span></button>`).join("")}</div>
+    <button class="ghost-btn full listen" data-listenall>▶ Listen to ${list.length > 1 ? "these " + Math.min(list.length, 200) + " verses" : "this verse"} in order</button>
     <h2 class="group-title">Every verse, in order${top.book != null ? " · " + esc(bookName(top.book)) : ""}${top.r ? " · “" + esc(top.r) + "”" : ""} <small>(${list.length})</small></h2>
     <ul class="card-list">${shown.map(([b, c, v]) => occurrence({ b, c, v }, n)).join("")}</ul>
     ${list.length > shown.length ? `<button class="wide-btn ghost" data-more>Show more (${list.length - shown.length} left)</button>` : ""}`;
@@ -224,7 +247,7 @@ function markedVerse(ref, num) { // the KJV verse with the phrases for this word
 }
 function occurrence(ref, num, open) {
   const k = refKey(ref.b, ref.c, ref.v);
-  return `<li><div class="ref"><button class="link" data-verse="${k}">${esc(refLabel(ref))}</button><span class="row-acts"><button class="mini" data-ctx="1" aria-expanded="false">${open ? "Hide context" : "Context"}</button><button class="mini" data-tact="add" data-k="${k}" aria-label="Add ${esc(refLabel(ref))} to a thread">＋ Thread</button></span></div>
+  return `<li><div class="ref"><button class="link" data-verse="${k}">${esc(refLabel(ref))}</button><span class="row-acts"><button class="mini play" data-listen="${k}" aria-label="Listen to ${esc(refLabel(ref))}">▶</button><button class="mini" data-ctx="1" aria-expanded="false">${open ? "Hide context" : "Context"}</button><button class="mini" data-tact="add" data-k="${k}" aria-label="Add ${esc(refLabel(ref))} to a thread">＋ Thread</button></span></div>
     <p class="vt">${markedVerse(ref, num)}</p><div class="ctx" ${open ? "" : "hidden"}>${contextHTML(ref)}</div></li>`;
 }
 function contextHTML(ref, before = 3, after = 3) {
@@ -246,13 +269,14 @@ function verseHTML(top) {
   return `<h1 class="page-title">${esc(refLabel(ref))}</h1>
     <p class="study-verse">${wordsLine}</p>
     <p class="hint">Tap any word to follow it through scripture. <i class="added">Words like this</i> were added by the translators to make the English read; they are not in the Hebrew or Greek.</p>
-    <div class="row-btns tight"><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button></div>
+    <div class="row-btns tight"><button class="ghost-btn listen" data-listen="${k}">▶ Listen to this verse</button><button class="ghost-btn" data-listenfrom="${k}">▶ Read on from here</button><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button></div>
     <h2 class="group-title">In its place</h2>
     <div class="card ctx-card">${contextHTML(ref, 4, 4)}</div>
     <h2 class="group-title">The words of this verse</h2>
     <ul class="card-list words-list">${uniq.map((n) => { const [l, x] = lexWord(n); const seg = segs.find((s) => s.nums && s.nums.includes(n)); const c = (buildIndex().idx[n] || []).length;
       return `<li class="clickable orig-row" data-word="${n}" role="button" tabindex="0"><span class="orig ${isHeb(n) ? "heb" : "grk"}" lang="${isHeb(n) ? "he" : "grc"}">${esc(l)}</span><span class="meta"><b>“${esc(seg.t)}”</b><span>${esc(x)} · in ${c} verse${c > 1 ? "s" : ""}</span></span><span class="go">›</span></li>`; }).join("")}</ul>
     ${S.showXrefs !== false ? `<h2 class="group-title">Scripture that speaks to this verse <small>(${xr.length})</small></h2>
+    ${xr.length ? `<button class="ghost-btn full listen" data-listenall>▶ Listen to this verse and the ${xr.length} linked verses</button>` : ""}
     <ul class="card-list">${xr.length ? xr.map(xrefItem).join("") : `<li class="empty-card">No linked verses for this one.</li>`}</ul>` : ""}`;
 }
 function xrefItem(t) {
@@ -262,7 +286,7 @@ function xrefItem(t) {
   else if (z) { const ch = bibles.KJV.books[a.b][a.c]; text = ch.slice(a.v, z.v + 1).map((t, i) => `${a.v + i + 1} ${t}`).join(" "); label += "–" + (z.v + 1); }
   else text = kjvText(a);
   const k = refKey(a.b, a.c, a.v);
-  return `<li class="clickable" data-verse="${k}" role="button" tabindex="0"><div class="ref"><span>${esc(label)}</span><span class="go">›</span></div><p class="vt">${esc(text)}</p></li>`;
+  return `<li class="clickable" data-verse="${k}" role="button" tabindex="0"><div class="ref"><span>${esc(label)}</span><span class="row-acts"><button class="mini play" data-listen="${k}" aria-label="Listen to ${esc(label)}">▶</button><span class="go">›</span></span></div><p class="vt">${esc(text)}</p></li>`;
 }
 
 // ------------------------------------------------------------------ threads: verses you link on one subject
@@ -310,18 +334,8 @@ function threadAction(act, el) {
     if (navigator.share) navigator.share({ title: t.title, text }).catch(() => {}); else navigator.clipboard.writeText(text).then(() => toast("Copied"));
     return;
   }
-  else if (act === "listen") { readThread(t); return; }
+  else if (act === "listen") { player.playList(t.items.map((i) => i.ref), t.title); return; }
   t.updated = Date.now(); saveA(); draw();
-}
-function readThread(t) {
-  if (!("speechSynthesis" in window)) return toast("Speech is not available");
-  speechSynthesis.cancel();
-  const voice = currentVoice();
-  t.items.forEach((it) => {
-    const u = new SpeechSynthesisUtterance(`${refLabel(it.ref).replace(":", ", verse ")}. ${kjvText(it.ref)}`);
-    if (voice) u.voice = voice; u.rate = S.rate; speechSynthesis.speak(u);
-  });
-  toast("Reading the thread aloud");
 }
 
 // ------------------------------------------------------------------ reader hooks

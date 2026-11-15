@@ -153,7 +153,9 @@ async function render(scrollToVerse) {
     const el = reader.querySelector(`[data-v="${scrollToVerse}"]`);
     if (el) { el.classList.add("selected"); requestAnimationFrame(() => el.scrollIntoView({ block: "center" })); setTimeout(() => el.classList.remove("selected"), 1800); }
   } else window.scrollTo(0, 0);
-  if (player.active && (player.b !== b || player.c !== pos.c) && !player.playing) player.load(b, pos.c);
+  if (player.active && !player.advancing && !player.queue && (player.b !== b || player.c !== pos.c)) {
+    if (player.playing) player.start(b, pos.c, 0); else { player.stopAt = null; player.load(b, pos.c); }   // the voice follows the chapter you open
+  }
   else if (player.active) markReading(player.verse);
 }
 const shortName = (b) => bookName(b).replace("Song of Solomon", "Song").replace("Thessalonians", "Thess").replace("Corinthians", "Cor")
@@ -509,22 +511,47 @@ async function voxlyTiming(b, c) {
 
 const player = {
   active: false, playing: false, engine: null, b: 0, c: 0, verse: 0, timing: null, verses: [], sleepAt: 0,
+  stopAt: null, queue: null, qi: 0, qTitle: "", advancing: false, // stopAt: stop after this verse; queue: verses to play in turn
   async load(b, c) {
     this.b = b; this.c = c; this.verse = 0;
     this.verses = (await getBible(S.version)).books[b][c];
     this.timing = await voxlyTiming(b, c);
     this.engine = this.timing ? "voxly" : S.audioSource === "voxly" ? null : "device";
     if (this.timing) { audio.src = voxlyUrl(S.version, b, c, audioExt(this.timing), this.timing.voiceKey); audio.playbackRate = S.rate; }
-    $("#playerTitle").textContent = `${bookName(b)} ${c + 1}`;
+    $("#playerTitle").textContent = this.queue ? this.qTitle : `${bookName(b)} ${c + 1}`;
     this.status(this.engine ? `${this.engine === "voxly" ? "Voxly" : "iPhone voice"} · ${S.version}` : "No Voxly recording for this chapter");
     this.mediaSession();
   },
-  async start(b = pos.b, c = pos.c, v = 0) {
+  async start(b = pos.b, c = pos.c, v = 0, only = false) { // only: play just verse v, then stop
     unlockAudio();
     this.show();
+    this.queue = null; this.stopAt = only ? v : null;
     if (!this.active || b !== this.b || c !== this.c || !this.engine) await this.load(b, c);
     this.active = true;
     this.play(v);
+  },
+  // A list of verses from anywhere in the Bible, read one after another (a thread, a word's verses, linked verses).
+  async playList(refs, title) {
+    if (!refs.length) return;
+    unlockAudio(); this.show();
+    this.queue = refs; this.qi = 0; this.qTitle = title;
+    await this.playItem();
+  },
+  async playItem() {
+    const r = this.queue[this.qi];
+    if (r.b !== this.b || r.c !== this.c || !this.engine) await this.load(r.b, r.c);
+    this.stopAt = r.v;
+    $("#playerTitle").textContent = `${this.qTitle} · ${this.qi + 1} of ${this.queue.length}`;
+    this.play(r.v);
+  },
+  verseDone() { // the verse asked for has been read
+    if (this.queue && this.qi < this.queue.length - 1) { this.qi++; this.playItem(); return; }
+    const r = { b: this.b, c: this.c, v: this.stopAt != null ? this.stopAt : this.verse };
+    this.verse = r.v;
+    this.queue = null; this.stopAt = null; this.pause();
+    if (this.engine === "voxly") audio.currentTime = this.timing.verses[r.v] || 0;   // Play repeats that verse
+    markReading(r.v);
+    this.status("Finished · " + refLabel(r));
   },
   show() { $("#player").hidden = false; document.body.classList.add("playing"); this.active = true; $("#listenTab").classList.add("active"); },
   play(v = this.verse) {
@@ -545,7 +572,8 @@ const player = {
     speechSynthesis.cancel();
     const i = this.verse, title = ((bibles[S.version].titles || {})[this.b] || {})[this.c];
     const head = this.b === 18 ? `Psalm ${this.c + 1}. ` : `${bookName(this.b)}, chapter ${this.c + 1}. `;
-    const u = new SpeechSynthesisUtterance((i === 0 ? head + (title ? title + " " : "") : "") + this.verses[i]);
+    const intro = this.stopAt != null ? `${refLabel({ b: this.b, c: this.c, v: i }).replace(":", ", verse ")}. ` : i === 0 ? head + (title ? title + " " : "") : "";
+    const u = new SpeechSynthesisUtterance(intro + this.verses[i]);
     const voice = currentVoice();
     if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "en-GB";
     u.rate = S.rate; u.pitch = 1; u.volume = 1; u._i = i;
@@ -558,23 +586,28 @@ const player = {
   },
   next() {
     if (this.sleepCheck()) return;
+    if (this.stopAt != null && this.verse >= this.stopAt) { this.verseDone(); return; }
     if (this.verse < this.verses.length - 1) { this.verse++; markReading(this.verse); this.speak(); }
     else this.chapterEnded();
   },
   async chapterEnded() {
     const n = neighbour(1, { b: this.b, c: this.c });
     if (!S.autoNext || !n) { this.playing = false; this.updateBtn(); this.status("Finished " + bookName(this.b) + " " + (this.c + 1)); markReading(-1); return; }
+    this.advancing = true;
     if (S.followAudio) goTo(n.b, n.c);
-    await this.load(n.b, n.c); this.play(0);
+    await this.load(n.b, n.c); this.advancing = false; this.play(0);
   },
   skip(d) {
+    if (this.queue) { const q = this.qi + d; if (q >= 0 && q < this.queue.length) { this.qi = q; this.playItem(); } return; }
     const v = this.verse + d;
     if (v < 0) { const p = neighbour(-1, { b: this.b, c: this.c }); if (p) this.start(p.b, p.c); return; }
     if (v >= this.verses.length) { this.chapterEnded(); return; }
     this.playing ? this.play(v) : (this.verse = v, markReading(v));
   },
-  close() { this.pause(); this.active = false; $("#player").hidden = true; document.body.classList.remove("playing"); $("#listenTab").classList.remove("active"); markReading(-1); },
-  toggleFromTab() { if (!this.active) this.start(); else if (this.b === pos.b && this.c === pos.c) this.toggle(); else this.start(); },
+  close() { this.pause(); this.queue = null; this.stopAt = null; this.active = false; $("#player").hidden = true; document.body.classList.remove("playing"); $("#listenTab").classList.remove("active"); markReading(-1); },
+  toggleFromTab() {
+    if (currentView === "study" && window.Study && Study.listen()) return; // Study plays what is on its page
+    if (!this.active) this.start(); else if (this.b === pos.b && this.c === pos.c) this.toggle(); else this.start(); },
   updateBtn() {
     $("#playIcon").innerHTML = this.playing ? '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>' : '<path d="M8 5l11 7-11 7z"/>';
     $("#pPlay").setAttribute("aria-label", this.playing ? "Pause" : "Play");
@@ -594,15 +627,16 @@ const player = {
   },
 };
 audio.addEventListener("timeupdate", () => {
-  if (player.engine !== "voxly" || !player.timing) return;
+  if (player.engine !== "voxly" || !player.timing || !player.playing) return; // a stopped player keeps its last words
   const t = audio.currentTime, vs = player.timing.verses;
   let i = 0; while (i + 1 < vs.length && vs[i + 1] <= t + 0.05) i++;
+  if (player.stopAt != null && player.playing && (i > player.stopAt || (vs[player.stopAt + 1] != null && t >= vs[player.stopAt + 1] - 0.12))) { player.verseDone(); return; }
   if (i !== player.verse) { player.verse = i; markReading(i); if (player.sleepCheck()) return; }
   const dur = audio.duration || player.timing.duration || 1;
   $("#playerBar").style.width = (t / dur) * 100 + "%";
   player.status(`Voxly ${VOXLY_VOICES[player.timing.voiceKey] || ""} · verse ${i + 1} of ${player.verses.length} · ${fmtTime(t)} / ${fmtTime(dur)}`);
 });
-audio.addEventListener("ended", () => { if (player.engine === "voxly" && player.playing) player.chapterEnded(); });
+audio.addEventListener("ended", () => { if (player.engine === "voxly" && player.playing) player.stopAt != null ? player.verseDone() : player.chapterEnded(); });
 audio.addEventListener("error", () => { if (player.engine === "voxly" && player.active) { player.status("Could not play the Voxly recording"); player.playing = false; player.updateBtn(); } });
 const fmtTime = (s) => `${Math.floor(s / 60)}:${pad(Math.floor(s % 60), 2)}`;
 
