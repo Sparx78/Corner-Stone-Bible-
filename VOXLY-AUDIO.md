@@ -33,7 +33,7 @@ Without Voxly (any computer with Python): `pip install kokoro-onnx soundfile`, d
 `voices-v1.0.bin` from the kokoro-onnx model release into a folder, then use `--kokoro-dir that-folder` in place of `--voxly`.
 
 Time and size: recording takes about a quarter of the listening time on a 4-core computer. The whole Bible is about
-75 hours of listening per voice, about 2 GB per voice at the 64 kbps used.
+57 hours of listening in Emma's voice and 67 in George's, about 0.8 GB and 0.95 GB in the AAC format used (32 kbps mono `.m4a`, the iPhone's own format). `--format mp3` makes 64 kbps MP3 instead, twice the size.
 
 Before speaking, `LORD` and `GOD` (small capitals in print) are given to the voice as "Lord" and "God", so they are not spelled out.
 The words on screen are unchanged.
@@ -43,14 +43,14 @@ The words on screen are unchanged.
 The recordings live in this repository under `audio/`, next to `index.html`, so GitHub Pages serves them with the app.
 After recording more, commit the new `audio` files (and the updated `audio/index.json`) to `main`.
 
-GitHub Pages sites are limited to about 1 GB. That is room for roughly 35 hours of listening in one voice, or a
-selection of books in both voices. For the whole Bible (about 2 GB per voice), host the `audio` folder on
+GitHub Pages sites are limited to about 1 GB. That is room for the whole Bible in one voice, or a selection of books
+in both voices. For the whole Bible in both voices (about 1.8 GB), host the `audio` folder on
 **Cloudflare Pages** (free) and put its address in Settings → Listening → *Voxly audio address*, ending in `/`.
 
 ## The timing file
 
 ```json
-{"version": "KJV", "book": 43, "chapter": 3, "voice": "Kokoro bf_emma @ 0.9",
+{"version": "KJV", "book": 43, "chapter": 3, "voice": "Kokoro bf_emma @ 0.9", "file": "003.m4a",
  "duration": 412.6, "verses": [0.0, 7.21, 15.03], "exact": true}
 ```
 

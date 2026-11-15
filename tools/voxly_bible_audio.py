@@ -10,7 +10,7 @@ Two ways to run it (both give identical files):
 Run it in the Python environment that has Voxly (or kokoro-onnx) installed. Needs FFmpeg for MP3.
 
 For every chapter it writes:
-    audio/<VERSION>/<voice>/<book 01-66>/<chapter 001>.mp3    the chapter, read aloud
+    audio/<VERSION>/<voice>/<book 01-66>/<chapter 001>.m4a    the chapter, read aloud (AAC, 32 kbps mono)
     audio/<VERSION>/<voice>/<book 01-66>/<chapter 001>.json   when each verse starts (exact: each verse is voiced separately)
 Copy the "audio" folder next to index.html on your web host. Chapters already recorded are skipped,
 so you can stop with Ctrl+C and run the same command again later.
@@ -115,10 +115,16 @@ class KokoroVoice:
 
 
 # ------------------------------------------------------------------ recording
-def record_chapter(voice, version, book, chapter, verses, title=None, bitrate="64k"):
+# AAC at 32 kbps mono: about half the size of 64 kbps MP3 and plays everywhere (the iPhone's own format).
+FORMATS = {"aac": ("m4a", ["-c:a", "aac", "-b:a", "32k", "-movflags", "+faststart"]),
+           "mp3": ("mp3", ["-c:a", "libmp3lame", "-b:a", "64k"])}
+
+
+def record_chapter(voice, version, book, chapter, verses, title=None, fmt_name="aac"):
     folder = HERE / "audio" / version / voice.key / ("%02d" % (book + 1))
     base = "%03d" % (chapter + 1)
-    mp3, timing = folder / (base + ".mp3"), folder / (base + ".json")
+    ext, codec = FORMATS[fmt_name]
+    mp3, timing = folder / (base + "." + ext), folder / (base + ".json")
     if mp3.exists() and timing.exists():
         return "already recorded"
     folder.mkdir(parents=True, exist_ok=True)
@@ -154,13 +160,18 @@ def record_chapter(voice, version, book, chapter, verses, title=None, bitrate="6
             w.setsampwidth(fmt[1])
             w.setframerate(fmt[2])
             w.writeframes(b"".join(frames))
-        part = Path(tmp) / "chapter.mp3"
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav_path), "-ac", "1", "-b:a", bitrate,
+        part = Path(tmp) / ("chapter." + ext)
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav_path), "-ac", "1"] + codec + [
                         "-metadata", "title=%s %d" % (BOOKS[book], chapter + 1), "-metadata", "artist=%s" % voice.name,
                         "-metadata", "album=%s" % version, str(part)], check=True)
         shutil.move(str(part), str(mp3))
     timing.write_text(json.dumps({"version": version, "book": book + 1, "chapter": chapter + 1, "voice": voice.name,
-                                  "duration": round(duration, 2), "verses": starts, "exact": True}), encoding="utf-8")
+                                  "file": mp3.name, "duration": round(duration, 2), "verses": starts, "exact": True}),
+                      encoding="utf-8")
+    for other in FORMATS.values():  # a recording in the previous format is replaced, not kept beside it
+        old = folder / (base + "." + other[0])
+        if old != mp3 and old.exists():
+            old.unlink()
     return "%d:%02d" % (duration // 60, duration % 60)
 
 
@@ -168,13 +179,14 @@ def write_index():
     """audio/index.json: which chapters are recorded, per version and voice, with sizes (the app reads it)."""
     root = HERE / "audio"
     idx = {}
-    for mp3 in sorted(root.glob("*/*/[0-9][0-9]/[0-9][0-9][0-9].mp3")):
-        if not mp3.with_suffix(".json").exists():
+    for tj in sorted(root.glob("*/*/[0-9][0-9]/[0-9][0-9][0-9].json")):
+        audio = tj.with_name(json.loads(tj.read_text(encoding="utf-8")).get("file") or tj.stem + ".mp3")
+        if not audio.exists():
             continue
-        version, voice, book = mp3.parts[-4], mp3.parts[-3], str(int(mp3.parts[-2]))
+        version, voice, book = tj.parts[-4], tj.parts[-3], str(int(tj.parts[-2]))
         ch = idx.setdefault(version, {}).setdefault(voice, {}).setdefault(book, {"chapters": [], "bytes": 0})
-        ch["chapters"].append(int(mp3.stem))
-        ch["bytes"] += mp3.stat().st_size + mp3.with_suffix(".json").stat().st_size
+        ch["chapters"].append(int(tj.stem))
+        ch["bytes"] += audio.stat().st_size + tj.stat().st_size
     tmp = root / "index.json.tmp"
     tmp.write_text(json.dumps(idx, separators=(",", ":")), encoding="utf-8")
     tmp.replace(root / "index.json")
@@ -191,6 +203,7 @@ def main():
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--voice", help="bf_emma (Voxly's default), bf_lily, bm_george, bm_daniel")
     ap.add_argument("--speed", type=float, help="0.9 is Voxly's default")
+    ap.add_argument("--format", choices=list(FORMATS), default="aac", help="aac (default, smaller) or mp3")
     if "--index" in sys.argv:  # only rebuild audio/index.json
         write_index()
         return print("audio/index.json updated")
@@ -216,7 +229,7 @@ def main():
         for b in books:
             titles = (bible.get("titles") or {}).get(str(b), {})
             for c, verses in enumerate(bible["books"][b]):
-                print("  %s %d: %s" % (BOOKS[b], c + 1, record_chapter(voice, a.version, b, c, verses, titles.get(str(c)))), flush=True)
+                print("  %s %d: %s" % (BOOKS[b], c + 1, record_chapter(voice, a.version, b, c, verses, titles.get(str(c)), a.format)), flush=True)
                 write_index()
     finally:
         voice.close()

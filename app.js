@@ -514,7 +514,7 @@ const player = {
     this.verses = (await getBible(S.version)).books[b][c];
     this.timing = await voxlyTiming(b, c);
     this.engine = this.timing ? "voxly" : S.audioSource === "voxly" ? null : "device";
-    if (this.timing) { audio.src = voxlyUrl(S.version, b, c, "mp3", this.timing.voiceKey); audio.playbackRate = S.rate; }
+    if (this.timing) { audio.src = voxlyUrl(S.version, b, c, audioExt(this.timing), this.timing.voiceKey); audio.playbackRate = S.rate; }
     $("#playerTitle").textContent = `${bookName(b)} ${c + 1}`;
     this.status(this.engine ? `${this.engine === "voxly" ? "Voxly" : "iPhone voice"} · ${S.version}` : "No Voxly recording for this chapter");
     this.mediaSession();
@@ -684,9 +684,16 @@ async function loadAudioIndex() {
   return audioIndex;
 }
 const mb = (n) => (n / 1e6 < 10 ? (n / 1e6).toFixed(1) : Math.round(n / 1e6)) + " MB";
+// Each chapter's timing file names its recording (001.m4a, or 001.mp3 for older recordings).
+const audioExt = (timing) => ((timing && timing.file) || ".mp3").split(".").pop();
+async function savedFile(c, book, ch, voice) { // the saved recording for a chapter, or null
+  const t = await c.match(voxlyUrl(S.version, book, ch - 1, "json", voice)); if (!t) return null;
+  const url = voxlyUrl(S.version, book, ch - 1, audioExt(await t.json()), voice);
+  return (await c.match(url)) ? url : null;
+}
 async function savedChapters(book, chapters, voice) {
   let n = 0;
-  try { const c = await caches.open(AUDIO_CACHE); for (const ch of chapters) if (await c.match(voxlyUrl(S.version, book, ch - 1, "mp3", voice))) n++; } catch {}
+  try { const c = await caches.open(AUDIO_CACHE); for (const ch of chapters) if (await savedFile(c, book, ch, voice)) n++; } catch {}
   return n;
 }
 async function renderAudioBooks() {
@@ -713,12 +720,13 @@ $("#audioBooks").onclick = async (e) => {
       const c = await caches.open(AUDIO_CACHE);
       for (const [i, ch] of chapters.entries()) {
         sv.textContent = `Saving ${i + 1} of ${chapters.length}…`;
-        for (const ext of ["json", "mp3"]) {
-          const url = voxlyUrl(S.version, b, ch - 1, ext, voice);
-          if (await c.match(url)) continue;
-          const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(url);
-          await c.put(url, r);
-        }
+        if (await savedFile(c, b, ch, voice)) continue;
+        const turl = voxlyUrl(S.version, b, ch - 1, "json", voice);
+        const tr = await fetch(turl, { cache: "no-cache" }); if (!tr.ok) throw new Error(turl);
+        const timing = await tr.clone().json();
+        const aurl = voxlyUrl(S.version, b, ch - 1, audioExt(timing), voice);
+        const ar = await fetch(aurl, { cache: "no-cache" }); if (!ar.ok) throw new Error(aurl);
+        await c.put(aurl, ar); await c.put(turl, tr);   // the timing file last: it marks the chapter as saved
       }
       toast(`${bookName(b)} audio is saved on this phone`);
     } catch { toast("Saving stopped — check the connection or free some space, then tap Finish"); }
@@ -726,7 +734,7 @@ $("#audioBooks").onclick = async (e) => {
   }
   if (un) {
     const b = +un.dataset.unsave;
-    try { const c = await caches.open(AUDIO_CACHE); for (const ch of audioIndex[S.version][voice][b + 1].chapters) for (const ext of ["json", "mp3"]) await c.delete(voxlyUrl(S.version, b, ch - 1, ext, voice)); } catch {}
+    try { const c = await caches.open(AUDIO_CACHE); for (const ch of audioIndex[S.version][voice][b + 1].chapters) for (const ext of ["json", "mp3", "m4a"]) await c.delete(voxlyUrl(S.version, b, ch - 1, ext, voice)); } catch {}
     toast(`${bookName(b)} audio removed from this phone`); renderAudioBooks();
   }
 };
