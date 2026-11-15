@@ -264,6 +264,11 @@
   <form id="newThreadForm" class="new-thread"><input id="newThreadName" class="field" placeholder="New thread, e.g. The Lamb of God" aria-label="New thread name"><button class="ver-action" type="submit">Create</button></form>
 </div>
 
+<div id="updateBar" class="update-bar" role="status" hidden>
+  <span>A new version of the app is ready.</span>
+  <button class="wide-btn" id="updateNow" onclick="location.reload()">Update now</button>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="app.js"></script>

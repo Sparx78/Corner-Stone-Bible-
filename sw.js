@@ -1,6 +1,6 @@
 /* Offline support: the app and the King James text are stored on the phone on the first visit.
    Other versions are stored when you download them (Settings). Voxly timing files are kept as they are played. */
-const SHELL = "scripture-shell-v13";
+const SHELL = "scripture-shell-v14";
 const FILES = ["./", "index.html", "styles.css", "app.js", "books.js", "study.js", "manifest.webmanifest", "data/versions.json", "data/KJV.json",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
   "fonts/EBGaramond-400.woff2", "fonts/EBGaramond-400i.woff2", "fonts/CormorantGaramond-500.woff2", "fonts/CormorantGaramond-500i.woff2"];
@@ -23,7 +23,8 @@ async function serveAudio(req) {
 }
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: "reload" skips the browser's own short-term cache, so an update always brings the newest files
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys()

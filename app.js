@@ -898,7 +898,14 @@ function opening() {
   const d = store.get("draft", null);
   if (d && (d.body || d.title)) { openNote(d.editing.id, d.editing.ref); $("#noteHeading").value = d.title; $("#noteBody").value = d.body; $("#noteTags").value = d.tags; toast("Your unsaved note was restored"); }
   $("#buildInfo").textContent = "Scripture 1.0 · texts from the scrollmapper/bible_databases collection.";
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  // When a new version of the app has been downloaded, offer it straight away instead of on the next launch.
+  const hadVersion = "serviceWorker" in navigator && !!navigator.serviceWorker.controller; // false on the very first visit
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then((reg) => {
+    const offer = () => { if (hadVersion) $("#updateBar").hidden = false; };
+    if (reg.waiting) offer();
+    reg.addEventListener("updatefound", () => { const w = reg.installing; if (w) w.addEventListener("statechange", () => { if (w.state === "installed" || w.state === "activated") offer(); }); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyDisplay);
 })();

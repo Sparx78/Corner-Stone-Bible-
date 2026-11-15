@@ -83,6 +83,14 @@ function pageList() {
   if (top.type === "path") { const refs = []; top.steps.forEach((t) => { const r = refFrom(t); for (let v = r.v; v <= r.v2; v++) refs.push({ b: r.b, c: r.c, v }); }); return { refs, title: (PATHS.find((x) => x.id === top.id) || {}).about }; }
   if (top.type === "person") return { refs: (top.list || []).slice(0, 200).map(([b, c, v]) => ({ b, c, v })), title: top.name };
   if (top.type === "passage") return { refs: (top.back || []).slice(0, 200), title: (top.title || passageLabel(top)) + ": scripture looks back" };
+  if (top.type === "home") return { refs: GUIDES.map(([k]) => parseKey(k)), title: "How scripture asks to be read" };
+  if (top.type === "book") { const n = BOOK_NOTES[bookName(top.b)] || {}, refs = [];
+    [...(n.writer || []), ...(n.setting || []), ...(n.purpose || []), ...(n.later || [])].forEach((t) => { const r = refFrom(t); for (let v = r.v; v <= r.v2; v++) refs.push({ b: r.b, c: r.c, v }); });
+    return { refs, title: "The book of " + bookName(top.b) }; }
+  if (top.type === "search") { const { idx } = buildIndex(); const firsts = Object.keys(ST.index.render).filter((n) => (ST.index.render[n][top.q] || 0) > 0)
+      .map((n) => idx[n][0]).filter(Boolean).sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]).slice(0, 30).map(([b, c, v]) => ({ b, c, v }));
+    return { refs: firsts, title: "First mentions of “" + top.q + "”" }; }
+  if (top.type === "verse" && !(S.showXrefs !== false && ST.xrefs)) return { refs: [top.ref], title: refLabel(top.ref) };
   if (top.type === "verse" && S.showXrefs !== false && ST.xrefs) {
     const r = top.ref, xr = (ST.xrefs[r.b][r.c][r.v] || "").split(" ").filter(Boolean).map((x) => parseKey(x.split("-")[0]));
     return { refs: [r, ...xr], title: refLabel(r) + " and linked verses" };
@@ -93,9 +101,10 @@ function listenAll() { const l = pageList(); if (l && l.refs.length) player.play
 window.Study = {
   listen() { // Listen tab while in Study: play this page's verses; false = nothing here to play
     const top = stack[stack.length - 1];
-    if (top.type === "verse") { player.start(top.ref.b, top.ref.c, top.ref.v); return true; }
+    // In Study the voice reads this page's scripture, never the chapter left open in the reader.
     const l = pageList(); if (l && l.refs.length) { player.playList(l.refs, l.title); return true; }
-    return false;
+    toast("Nothing to read aloud on this page: open a verse, word, life, event, book or path");
+    return true;
   },
   show: () => draw(), open: openStudy, threadSheet: openThreadSheet,
   async rich() { // returns (b, c, v) -> verse HTML with the words of Christ in red and added words in italics
