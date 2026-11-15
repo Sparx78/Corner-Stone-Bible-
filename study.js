@@ -40,7 +40,7 @@ function segments(raw) { // -> [{t, nums, added, christ}]
 const plain = (raw) => raw.replace(SEG, "$1").replace(/[{}«»]/g, "");
 function buildIndex() { // Strong's number -> [[b,c,v], ...] in canonical order, and English rendering counts
   if (ST.index) return ST.index;
-  const idx = {}, render = {};
+  const idx = {}, render = {}, cap = {};
   ST.words.forEach((book, b) => book.forEach((ch, c) => ch.forEach((raw, v) => {
     let m; SEG.lastIndex = 0;
     while ((m = SEG.exec(raw))) for (const n of m[2].split(" ")) {
@@ -48,10 +48,13 @@ function buildIndex() { // Strong's number -> [[b,c,v], ...] in canonical order,
       const last = list[list.length - 1];
       if (!last || last[0] !== b || last[1] !== c || last[2] !== v) list.push([b, c, v]);
       const r = render[n] || (render[n] = {}); const w = renderingOf(m[1]);
-      if (w && !LEADING.test(w + " ")) r[w] = (r[w] || 0) + 1;
+      if (w && !LEADING.test(w + " ")) {
+        r[w] = (r[w] || 0) + 1;
+        if (m[1].includes(w[0].toUpperCase() + w.slice(1))) cap[n] = (cap[n] || 0) + 1;   // written with a capital: a name
+      }
     }
   })));
-  return (ST.index = { idx, render });
+  return (ST.index = { idx, render, cap });
 }
 // "and the love" -> "love": the small English words around a rendering are not part of it
 const LEADING = /^(?:and|but|for|or|nor|the|a|an|of|his|her|its|my|thy|thine|your|our|their|in|to|unto|upon|by|with|that|this|these|those|which|who|o|be|is|was|shall|will|not|it|him|them|me|thee|you|us|he|she|they|we|i|ye|so|then|also|from|at|on|as)\s+/;
@@ -77,6 +80,8 @@ function pageList() {
   const top = stack[stack.length - 1];
   if (top.type === "word") return { refs: (top.list || []).slice(0, 200).map(([b, c, v]) => ({ b, c, v })), title: lexWord(top.num)[1] || "Word study" };
   if (top.type === "thread") { const t = A.threads.find((x) => x.id === top.id); return t && { refs: t.items.map((i) => i.ref), title: t.title }; }
+  if (top.type === "person") return { refs: (top.list || []).slice(0, 200).map(([b, c, v]) => ({ b, c, v })), title: top.name };
+  if (top.type === "passage") return { refs: (top.back || []).slice(0, 200), title: (top.title || passageLabel(top)) + ": scripture looks back" };
   if (top.type === "verse" && S.showXrefs !== false && ST.xrefs) {
     const r = top.ref, xr = (ST.xrefs[r.b][r.c][r.v] || "").split(" ").filter(Boolean).map((x) => parseKey(x.split("-")[0]));
     return { refs: [r, ...xr], title: refLabel(r) + " and linked verses" };
@@ -106,7 +111,7 @@ async function draw() {
   const top = stack[stack.length - 1];
   window.scrollTo(0, 0);
   if (!ST.words) studyPage.innerHTML = `<p class="empty"><span class="big">Opening the scriptures…</span>The first time, the study texts download (about 2 MB). After that they work offline.</p>`;
-  try { await loadStudy(S.showXrefs !== false); await getBible("KJV"); }
+  try { await loadStudy(S.showXrefs !== false || top.type === "passage"); await getBible("KJV"); }
   catch { studyPage.innerHTML = `<p class="empty"><span class="big">Could not load the study texts.</span>Connect to the internet once, then try again.</p>`; return; }
   const crumbs = stack.length > 2 ? `<nav class="crumbs" aria-label="Your path">${stack.slice(1).map((e, i) => `<button data-crumb="${i + 1}">${esc(crumbLabel(e))}</button>`).join("<span aria-hidden='true'>›</span>")}</nav>` : "";
   const head = stack.length > 1 ? `<div class="study-top"><button class="text-btn" id="studyBack">‹ Back</button>${crumbs}</div>` : "";
@@ -116,6 +121,8 @@ async function draw() {
   else if (top.type === "verse") body = verseHTML(top);
   else if (top.type === "search") body = searchHTML(top);
   else if (top.type === "thread") body = threadHTML(top);
+  else if (top.type === "person") body = personHTML(top);
+  else if (top.type === "passage") body = passageHTML(top);
   studyPage.innerHTML = head + body;
   const b = $("#studyBack"); if (b) b.onclick = back;
 }
@@ -123,11 +130,13 @@ function crumbLabel(e) {
   if (e.type === "word") { const [l, x] = lexWord(e.num); return x || e.num; }
   if (e.type === "verse") return refLabel(e.ref);
   if (e.type === "search") return `“${e.q}”`;
+  if (e.type === "person") return e.name;
+  if (e.type === "passage") return e.title || passageLabel(e);
   if (e.type === "thread") return (A.threads.find((t) => t.id === e.id) || {}).title || "Thread";
   return "Study";
 }
 studyPage.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
+  const t = e.target.closest("[data-person],[data-passage],[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
   if (!t) return;
   const d = t.dataset;
   if (d.crumb) { stack = stack.slice(0, +d.crumb + 1); draw(); }
@@ -135,6 +144,8 @@ studyPage.addEventListener("click", (e) => {
   else if (d.verse) go({ type: "verse", ref: parseKey(d.verse) });
   else if (d.read) { const r = parseKey(d.read); showView("read"); goTo(r.b, r.c, r.v); }
   else if (d.thread) go({ type: "thread", id: d.thread });
+  else if (d.person) go({ type: "person", name: d.person, page: 1 });
+  else if (d.passage) { const [b, c1, c2] = d.passage.split(".").map(Number); go({ type: "passage", b, c1, c2, title: d.title || "", page: 1 }); }
   else if (d.q) go({ type: "search", q: d.q });
   else if ("more" in d) { stack[stack.length - 1].page++; draw(); }
   else if (d.filterBook != null) { const top = stack[stack.length - 1]; top.book = top.book === +d.filterBook ? null : +d.filterBook; top.page = 1; draw(); }
@@ -162,6 +173,10 @@ function homeHTML() {
   <h2 class="group-title">Begin at the foundation</h2>
   <p class="hint">Choose a word: see the Hebrew or Greek word behind it, where scripture first uses it, and every place it is used after.</p>
   <div class="chips">${FOUNDATION_WORDS.map((w) => `<button class="chip" data-q="${w}">${w}</button>`).join("")}</div>
+  <h2 class="group-title">Lives &amp; events</h2>
+  <p class="hint">Follow a life or an event through the whole Bible: where scripture foretells it, tells it, remembers it, and explains it. Type any name in the box above, or choose:</p>
+  <div class="chips">${PEOPLE.map((n) => `<button class="chip" data-person="${n}">${n}</button>`).join("")}</div>
+  <ul class="card-list event-list">${EVENTS.map(([t, b, c1, c2]) => `<li class="clickable" data-passage="${b}.${c1}.${c2}" data-title="${esc(t)}" role="button" tabindex="0"><div class="ref"><span>${esc(t)}</span><span class="go">›</span></div><small class="muted">${esc(passageLabel({ b, c1, c2 }))}</small></li>`).join("")}</ul>
   <h2 class="group-title">Your threads</h2>
   <ul class="card-list">${A.threads.length ? A.threads.map((t) => `<li class="clickable thread-card" data-thread="${t.id}" role="button" tabindex="0"><div class="ref"><span>${esc(t.title)}</span><time>${t.items.length} verse${t.items.length === 1 ? "" : "s"}</time></div>${t.items[0] ? `<p class="vt">${esc(kjvText(t.items[0].ref))}</p>` : ""}</li>`).join("")
     : `<li class="empty-card">No threads yet. While reading, tap a verse and choose <b>Add to thread</b> to link verses on one subject.</li>`}</ul>
@@ -194,7 +209,8 @@ function searchHTML(top) {
   const heb = hits.filter((h) => isHeb(h[0])), grk = hits.filter((h) => !isHeb(h[0]));
   const row = ([n, c]) => { const [l, x] = lexWord(n); const first = idx[n][0];
     return `<li class="clickable orig-row" data-word="${n}" role="button" tabindex="0"><span class="orig ${isHeb(n) ? "heb" : "grk"}" lang="${isHeb(n) ? "he" : "grc"}">${esc(l)}</span><span class="meta"><b>${esc(x)}</b><span>“${esc(top.q)}” ${c}× · in ${idx[n].length} verse${idx[n].length > 1 ? "s" : ""} · first: ${esc(refLabel({ b: first[0], c: first[1], v: first[2] }))}</span></span><span class="go">›</span></li>`; };
-  return `<h1 class="page-title">“${esc(top.q)}”</h1>
+  const person = personNums(top.q).length ? `<ul class="card-list"><li class="clickable person-card" data-person="${esc(cap1(top.q))}" role="button" tabindex="0"><div class="ref"><span>Follow the life of ${esc(cap1(top.q))}</span><span class="go">›</span></div><small class="muted">Their story, and every place scripture speaks of them again</small></li></ul>` : "";
+  return `<h1 class="page-title">“${esc(top.q)}”</h1>${person}
     <p class="hint">In the King James Bible, “${esc(top.q)}” translates ${hits.length} different word${hits.length > 1 ? "s" : ""} in the original. Each one is traced separately, so you can see how scripture itself uses it.</p>
     ${heb.length ? `<h2 class="group-title">Old Testament · Hebrew</h2><ul class="card-list">${heb.slice(0, 25).map(row).join("")}</ul>` : ""}
     ${grk.length ? `<h2 class="group-title">New Testament · Greek</h2><ul class="card-list">${grk.slice(0, 25).map(row).join("")}</ul>` : ""}`;
@@ -238,10 +254,11 @@ function wordHTML(top) {
     <ul class="card-list">${shown.map(([b, c, v]) => occurrence({ b, c, v }, n)).join("")}</ul>
     ${list.length > shown.length ? `<button class="wide-btn ghost" data-more>Show more (${list.length - shown.length} left)</button>` : ""}`;
 }
-function markedVerse(ref, num) { // the KJV verse with the phrases for this word marked
+function markedVerse(ref, num) { // the KJV verse with the phrases for this word (or these words) marked
+  const want = [].concat(num);
   return segments(ST.words[ref.b][ref.c][ref.v]).map((s) => {
     const t = esc(s.t);
-    if (s.nums && s.nums.includes(num)) return `<mark>${t}</mark>`;
+    if (s.nums && s.nums.some((n) => want.includes(n))) return `<mark>${t}</mark>`;
     return s.added ? `<i class="added">${t}</i>` : t;
   }).join("");
 }
@@ -269,7 +286,7 @@ function verseHTML(top) {
   return `<h1 class="page-title">${esc(refLabel(ref))}</h1>
     <p class="study-verse">${wordsLine}</p>
     <p class="hint">Tap any word to follow it through scripture. <i class="added">Words like this</i> were added by the translators to make the English read; they are not in the Hebrew or Greek.</p>
-    <div class="row-btns tight"><button class="ghost-btn listen" data-listen="${k}">▶ Listen to this verse</button><button class="ghost-btn" data-listenfrom="${k}">▶ Read on from here</button><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button></div>
+    <div class="row-btns tight"><button class="ghost-btn listen" data-listen="${k}">▶ Listen to this verse</button><button class="ghost-btn" data-listenfrom="${k}">▶ Read on from here</button><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button><button class="ghost-btn full" data-passage="${ref.b}.${ref.c}.${ref.c}" data-title="${esc(bookName(ref.b) + " " + (ref.c + 1))}">What scripture says of ${esc(bookName(ref.b))} ${ref.c + 1}, before and after ›</button></div>
     <h2 class="group-title">In its place</h2>
     <div class="card ctx-card">${contextHTML(ref, 4, 4)}</div>
     <h2 class="group-title">The words of this verse</h2>
@@ -287,6 +304,150 @@ function xrefItem(t) {
   else text = kjvText(a);
   const k = refKey(a.b, a.c, a.v);
   return `<li class="clickable" data-verse="${k}" role="button" tabindex="0"><div class="ref"><span>${esc(label)}</span><span class="row-acts"><button class="mini play" data-listen="${k}" aria-label="Listen to ${esc(label)}">▶</button><span class="go">›</span></span></div><p class="vt">${esc(text)}</p></li>`;
+}
+
+// ------------------------------------------------------------------ lives and events
+// Starting points only: the names are the Bible's own, the passages are whole chapters as printed.
+const PEOPLE = ["Adam", "Noah", "Abraham", "Sarah", "Isaac", "Jacob", "Joseph", "Moses", "Aaron", "Joshua", "Ruth", "Samuel",
+  "David", "Solomon", "Elijah", "Elisha", "Isaiah", "Jeremiah", "Daniel", "Jonah", "Jesus", "Peter", "Paul"];
+const EVENTS = [ // [title, book, first chapter, last chapter] (0-based)
+  ["The creation", 0, 0, 1], ["The fall", 0, 2, 2], ["The flood", 0, 5, 8], ["The call of Abram", 0, 11, 11],
+  ["God's covenant with Abraham", 0, 14, 16], ["The offering of Isaac", 0, 21, 21], ["Joseph in Egypt", 0, 36, 49],
+  ["Moses: birth and calling", 1, 0, 3], ["The plagues of Egypt", 1, 6, 10], ["The passover", 1, 11, 11], ["Through the Red sea", 1, 13, 14],
+  ["Bread from heaven", 1, 15, 15], ["Sinai and the law", 1, 18, 19], ["The tabernacle", 1, 24, 30], ["The golden calf", 1, 31, 31],
+  ["The day of atonement", 2, 15, 15], ["The serpent of brass", 3, 20, 20], ["Jericho", 5, 5, 5], ["David and Goliath", 8, 16, 16],
+  ["God's covenant with David", 9, 6, 6], ["The temple of Solomon", 10, 5, 7], ["Elijah on mount Carmel", 10, 17, 17],
+  ["The fall of Jerusalem", 11, 24, 24], ["The return from captivity", 14, 0, 0], ["The suffering servant", 22, 52, 52],
+  ["Daniel in Babylon", 26, 0, 5], ["Jonah and Nineveh", 31, 0, 3], ["The birth of Jesus", 41, 0, 1], ["The sermon on the mount", 39, 4, 6],
+  ["The crucifixion", 42, 18, 18], ["The resurrection", 42, 19, 19], ["The day of Pentecost", 43, 1, 1], ["The conversion of Saul", 43, 8, 8],
+  ["A new heaven and a new earth", 65, 20, 21],
+];
+// The same person under another name: an earlier name, or the New Testament's Greek spelling of the name.
+const ALIASES = { abraham: ["abram"], sarah: ["sarai", "sara@G"], paul: ["saul@G"], elijah: ["elias@G"], elisha: ["eliseus@G"],
+  isaiah: ["esaias@G"], jeremiah: ["jeremy@G", "jeremias@G"], noah: ["noe@G"], jonah: ["jonas@G"], hosea: ["osee@G"],
+  joshua: [], korah: ["core@G"], rahab: ["rachab@G"], judah: ["juda@G"] };
+const cap1 = (w) => w.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+const passageLabel = (p) => `${bookName(p.b)} ${p.c1 + 1}${p.c2 > p.c1 ? "–" + (p.c2 + 1) : ""}`;
+function personNums(name) { // the Hebrew and Greek words the KJV renders as this name (written with a capital)
+  const { render, cap } = buildIndex(), want = [name.toLowerCase().trim()];
+  for (const a of ALIASES[want[0]] || []) want.push(a);
+  const out = [];
+  for (const n in render) {
+    for (const w of want) {
+      const [word, only] = w.split("@");
+      if (only && n[0] !== only) continue;
+      const c = render[n][word] || 0, total = Object.values(render[n]).reduce((x, y) => x + y, 0);
+      if (c >= 2 && c / total >= 0.6 && (cap[n] || 0) >= c * 0.8) out.push(n);
+    }
+  }
+  return [...new Set(out)];
+}
+function chapterBlocks(refs) { // where a life is told: runs of chapters that speak of them again and again
+  const per = new Map();
+  refs.forEach(([b, c]) => per.set(b * 1000 + c, (per.get(b * 1000 + c) || 0) + 1));
+  const keys = [...per.keys()].sort((x, y) => x - y), blocks = [];
+  for (const k of keys) {
+    if (per.get(k) < 2) continue;
+    const last = blocks[blocks.length - 1];
+    if (last && last.b === Math.floor(k / 1000) && k % 1000 - last.c2 <= 2) { last.c2 = k % 1000; last.n += per.get(k); }
+    else blocks.push({ b: Math.floor(k / 1000), c1: k % 1000, c2: k % 1000, n: per.get(k) });
+  }
+  return blocks.filter((x) => x.n >= 4);
+}
+function personHTML(top) {
+  const nums = personNums(top.name), { idx } = buildIndex();
+  if (!nums.length) return `<h1 class="page-title">${esc(top.name)}</h1><p class="empty">This name is not found in the King James Bible. Check the spelling (for example “Elijah”, or “Elias” in the New Testament).</p>`;
+  const seen = new Set(), refs = [];
+  nums.forEach((n) => idx[n].forEach((r) => { const k = r.join("."); if (!seen.has(k)) { seen.add(k); refs.push(r); } }));
+  refs.sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]);
+  top.list = refs;
+  // The story is told in the books where they are first named and named most; everywhere else scripture speaks of them again.
+  const firstNT = refs[0][0] >= NT_START;
+  const blocks = chapterBlocks(refs).filter((x) => (x.b >= NT_START) === firstNT);
+  const storyBooks = new Set(blocks.length ? blocks.map((x) => x.b) : [refs[0][0]]);
+  const elsewhere = refs.filter(([b]) => !storyBooks.has(b));
+  const nt = elsewhere.filter(([b]) => b >= NT_START), otLater = elsewhere.filter(([b]) => b < NT_START);
+  const books = new Set(refs.map((r) => r[0])).size;
+  const first = { b: refs[0][0], c: refs[0][1], v: refs[0][2] };
+  const shown = (list, n) => list.slice(0, n).map(([b, c, v]) => occurrence({ b, c, v }, nums)).join("");
+  return `<header class="word-head">
+      <div class="orig-names">${nums.map((n) => `<button class="orig ${isHeb(n) ? "heb" : "grk"}" lang="${isHeb(n) ? "he" : "grc"}" data-word="${n}" title="${esc(lexWord(n)[1])}">${esc(lexWord(n)[0])}</button>`).join("")}</div>
+      <h1 class="page-title center">${esc(top.name)}</h1>
+      <div class="strongs">Named in ${refs.length} verses · ${books} books</div>
+    </header>
+    <p class="hint">Every verse where this name is written. Where scripture gives the same name to more than one person, all are shown; each verse's context makes plain who is meant.</p>
+    <button class="ghost-btn full listen" data-listenall>▶ Listen to every verse that names ${esc(top.name)} (${Math.min(refs.length, 200)})</button>
+    <h2 class="group-title">First mention — the foundation</h2>
+    <ul class="card-list">${occurrence(first, nums, true)}</ul>
+    <h2 class="group-title">Where the story is told</h2>
+    <ul class="card-list">${blocks.map((x) => `<li class="clickable" data-passage="${x.b}.${x.c1}.${x.c2}" data-title="${esc(top.name)}: ${esc(passageLabel(x))}" role="button" tabindex="0"><div class="ref"><span>${esc(passageLabel(x))}</span><span class="go">›</span></div><small class="muted">named ${x.n} times · what scripture says of it before and after</small></li>`).join("") || `<li class="empty-card">Named only here and there; see every verse below.</li>`}</ul>
+    ${otLater.length ? `<h2 class="group-title">${firstNT ? "Foretold or named in the Old Testament" : "Spoken of elsewhere in the Old Testament"} <small>(${otLater.length})</small></h2><ul class="card-list">${shown(otLater, 30)}</ul>` : ""}
+    ${nt.length ? `<h2 class="group-title">${firstNT ? "Spoken of elsewhere in the New Testament" : "Spoken of in the New Testament"} <small>(${nt.length})</small></h2><ul class="card-list">${shown(nt, 60)}</ul>` : ""}
+    <h2 class="group-title">Where the name is found</h2>
+    ${distHTML(refs, top)}
+    <h2 class="group-title">Every verse, in order${top.book != null ? " · " + esc(bookName(top.book)) : ""} <small>(${(top.book != null ? refs.filter((r) => r[0] === top.book) : refs).length})</small></h2>
+    <ul class="card-list">${(top.book != null ? refs.filter((r) => r[0] === top.book) : refs).slice(0, top.page * 40).map(([b, c, v]) => occurrence({ b, c, v }, nums)).join("")}</ul>
+    ${(top.book != null ? refs.filter((r) => r[0] === top.book) : refs).length > top.page * 40 ? `<button class="wide-btn ghost" data-more>Show more</button>` : ""}`;
+}
+function distHTML(refs, top) {
+  const per = {}; refs.forEach(([b]) => (per[b] = (per[b] || 0) + 1));
+  const max = Math.max(1, ...Object.values(per));
+  return `<div class="dist" role="list" aria-label="Verses per book">${Object.entries(per).map(([b, c]) => `<button role="listitem" class="dist-row ${top.book === +b ? "on" : ""}" data-filter-book="${b}" aria-pressed="${top.book === +b}" aria-label="${esc(bookName(+b))}: ${c} verses"><span class="bn">${esc(shortName(+b))}</span><span class="bar"><i style="width:${(c / max) * 100}%"></i></span><span class="bc">${c}</span></button>`).join("")}</div>`;
+}
+
+// Verses elsewhere that point to a passage: scripture's own foretelling, remembering and explaining of it.
+let reverseLinks = null;
+function buildReverse() {
+  if (reverseLinks) return reverseLinks;
+  reverseLinks = new Map();
+  ST.xrefs.forEach((book, b) => book.forEach((ch, c) => ch.forEach((line, v) => {
+    if (!line) return;
+    for (const t of line.split(" ")) {
+      const [tb, tc, tv] = t.split("-")[0].split(".").map(Number);
+      const key = tb * 1000 + tc;
+      let list = reverseLinks.get(key); if (!list) reverseLinks.set(key, (list = []));
+      list.push([b, c, v, tv]);
+    }
+  })));
+  return reverseLinks;
+}
+// Phrases with which scripture gives a reason or purpose. The verses are shown as written, with the phrase marked.
+const REASONS = /\b(that (?:ye|they|thou|he|she|it|we|all|men|the \w+|my people|this people) (?:may|might|shall|should) (?:know|learn|fear|believe|understand|serve|see|remember|live|hear|keep|walk|be)|(?:for|because of) (?:my|his|thy|thine|mine|thine own|mine own|his own) (?:name'?s'?|names'?|holy name's|own) sake|for (?:mine|his|thine) own sake|to the (?:intent|end) that|that i (?:might|may) (?:shew|show|be glorified|bring|make|dwell|know|prove|humble)|that the scripture(?:s)? might be fulfilled|that it might be fulfilled|to prove thee|to humble thee|that my name may|for this cause|to this end)\b/i;
+function reasonVerses(p) {
+  const out = [];
+  for (let c = p.c1; c <= p.c2; c++) bibles.KJV.books[p.b][c].forEach((t, v) => { const m = t.match(REASONS); if (m) out.push({ b: p.b, c, v, m: m[0] }); });
+  return out;
+}
+function passageHTML(top) {
+  const p = top, rev = buildReverse(), inside = (b, c) => b === p.b && c >= p.c1 && c <= p.c2;
+  const back = [];
+  for (let c = p.c1; c <= p.c2; c++) (rev.get(p.b * 1000 + c) || []).forEach(([b, sc, v, tv]) => { if (!inside(b, sc)) back.push({ b, c: sc, v, to: { b: p.b, c, v: tv } }); });
+  const seen = new Set(), uniq = back.filter((x) => { const k = refKey(x.b, x.c, x.v); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((x, y) => x.b - y.b || x.c - y.c || x.v - y.v);
+  top.back = uniq;
+  const before = uniq.filter((x) => x.b < p.b || (x.b === p.b && x.c < p.c1));
+  const sameAfter = uniq.filter((x) => x.b === p.b && x.c > p.c2);
+  const laterOT = uniq.filter((x) => x.b > p.b && x.b < NT_START);
+  const nt = uniq.filter((x) => x.b >= NT_START && (p.b < NT_START || x.b !== p.b));
+  const reasons = reasonVerses(p);
+  const item = (x) => { const k = refKey(x.b, x.c, x.v);
+    return `<li><div class="ref"><button class="link" data-verse="${k}">${esc(refLabel(x))}</button><span class="row-acts"><button class="mini play" data-listen="${k}" aria-label="Listen to ${esc(refLabel(x))}">▶</button><button class="mini" data-ctx="1">Context</button><button class="mini" data-tact="add" data-k="${k}" aria-label="Add to a thread">＋ Thread</button></span></div>
+      <p class="vt">${esc(kjvText(x))}</p><small class="points">points to <button class="link" data-verse="${refKey(x.to.b, x.to.c, x.to.v)}">${esc(refLabel(x.to))}</button></small><div class="ctx" hidden>${contextHTML(x)}</div></li>`; };
+  const group = (title, list, n = 40) => list.length ? `<h2 class="group-title">${title} <small>(${list.length})</small></h2><ul class="card-list">${list.slice(0, n * top.page).map(item).join("")}</ul>${list.length > n * top.page ? `<button class="wide-btn ghost" data-more>Show more</button>` : ""}` : "";
+  const ntPassage = p.b >= NT_START;
+  return `<h1 class="page-title">${esc(top.title || passageLabel(p))}</h1>
+    <p class="hint">${esc(passageLabel(p))}. What scripture says of this, before and after, in its own words.</p>
+    <div class="row-btns tight"><button class="ghost-btn" data-read="${refKey(p.b, p.c1, 0)}">Read ${esc(passageLabel(p))}</button><button class="ghost-btn listen" data-listenfrom="${refKey(p.b, p.c1, 0)}">▶ Listen to it</button>${uniq.length ? `<button class="ghost-btn listen" data-listenall>▶ Listen to what scripture says of it</button>` : ""}</div>
+    ${reasons.length ? `<h2 class="group-title">Reasons given in the text <small>(${reasons.length})</small></h2>
+      <p class="hint">Verses in ${esc(passageLabel(p))} that state a reason or purpose (“that ye may know…”, “for my name's sake”, “to the intent that…”), as written.</p>
+      <ul class="card-list">${reasons.map((x) => { const k = refKey(x.b, x.c, x.v); const t = esc(kjvText(x)).replace(esc(x.m), `<mark>${esc(x.m)}</mark>`);
+        return `<li><div class="ref"><button class="link" data-verse="${k}">${esc(refLabel(x))}</button><span class="row-acts"><button class="mini play" data-listen="${k}" aria-label="Listen">▶</button></span></div><p class="vt">${t}</p></li>`; }).join("")}</ul>` : ""}
+    ${group(ntPassage ? "Foretold in the Old Testament" : "Foretold beforehand", before)}
+    ${group("Later in the same book", sameAfter, 20)}
+    ${group("Remembered later in the Old Testament", laterOT)}
+    ${group(ntPassage ? "Elsewhere in the New Testament" : "Explained in the New Testament", nt, 60)}
+    ${!uniq.length ? `<p class="empty">No other verses are linked to this passage.</p>` : ""}
+    <p class="hint sources">Linked by the verse-to-verse cross-references; each verse shows the place it points to.</p>`;
 }
 
 // ------------------------------------------------------------------ threads: verses you link on one subject
