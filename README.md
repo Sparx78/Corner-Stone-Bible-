@@ -1,1 +1,1 @@
-# Corner-Stone-Bible-
+# Corner-Stone-Bible
