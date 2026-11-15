@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scripture</title>
+<meta name="description" content="Read and listen to the King James Bible, with notes and highlights.">
+<meta name="theme-color" content="#0f1b2d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scripture">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="opening" class="opening" aria-hidden="true" hidden>
+  <svg class="opening-star" viewBox="0 0 64 64"><path d="M32 0l4.2 23.4L60 32l-23.8 8.6L32 64l-4.2-23.4L4 32l23.8-8.6z"/></svg>
+  <p class="opening-text">In the beginning God created<br>the heaven and the earth.</p>
+  <p class="opening-ref">Genesis 1:1</p>
+</div>
+<a class="skip" href="#reader">Skip to scripture</a>
+
+<header class="topbar" role="banner">
+  <button class="ref-btn" id="refBtn" aria-haspopup="dialog" aria-label="Choose book and chapter">
+    <span id="refText">Genesis 1</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+  </button>
+  <button class="ver-btn" id="verBtn" aria-haspopup="dialog" aria-label="Choose version"><span id="verText">KJV</span></button>
+  <span class="spacer"></span>
+  <button class="icon-btn" id="searchBtn" aria-label="Search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+  <button class="icon-btn" id="textBtn" aria-label="Text and display settings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19L9.5 5h1L16 19M6 14h8M17 19l2.5-6.5h.5L22.5 19M18 17h4"/></svg></button>
+</header>
+
+<main id="main">
+  <section id="view-read" class="view active" aria-label="Read">
+    <article id="reader" class="reader" tabindex="-1" aria-live="off"></article>
+    <nav class="chapter-nav" aria-label="Chapter navigation">
+      <button id="prevCh" class="pill" aria-label="Previous chapter">‹ <span id="prevLabel"></span></button>
+      <button id="nextCh" class="pill" aria-label="Next chapter"><span id="nextLabel"></span> ›</button>
+    </nav>
+  </section>
+
+  <section id="view-study" class="view" aria-label="Study">
+    <div class="page" id="studyPage"></div>
+  </section>
+
+  <section id="view-notes" class="view" aria-label="Notes">
+    <div class="page">
+      <h1 class="page-title">Notes &amp; Highlights</h1>
+      <div class="seg" role="tablist" aria-label="Filter">
+        <button role="tab" aria-selected="true" data-filter="all">All</button>
+        <button role="tab" aria-selected="false" data-filter="note">Notes</button>
+        <button role="tab" aria-selected="false" data-filter="hl">Highlights</button>
+        <button role="tab" aria-selected="false" data-filter="bm">Bookmarks</button>
+      </div>
+      <input id="notesFilter" class="field" type="search" placeholder="Search your notes" aria-label="Search your notes">
+      <button class="wide-btn" id="newJournal">＋ New journal entry</button>
+      <ul id="notesList" class="card-list"></ul>
+      <div class="row-btns">
+        <button class="ghost-btn" id="exportNotes">Export backup</button>
+        <button class="ghost-btn" id="importNotes">Restore backup</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-search" class="view" aria-label="Search">
+    <div class="page">
+      <h1 class="page-title">Search</h1>
+      <form id="searchForm" role="search">
+        <input id="searchInput" class="field" type="search" placeholder="Words or a reference, e.g. John 3:16" aria-label="Search scripture" autocomplete="off">
+      </form>
+      <div class="seg" role="tablist" aria-label="Scope">
+        <button role="tab" aria-selected="true" data-scope="all">Whole Bible</button>
+        <button role="tab" aria-selected="false" data-scope="ot">Old Testament</button>
+        <button role="tab" aria-selected="false" data-scope="nt">New Testament</button>
+      </div>
+      <p id="searchStatus" class="muted" role="status"></p>
+      <ul id="searchResults" class="card-list"></ul>
+    </div>
+  </section>
+
+  <section id="view-more" class="view" aria-label="More">
+    <div class="page">
+      <h1 class="page-title">Settings</h1>
+
+      <h2 class="group-title">Background</h2>
+      <div class="theme-row" role="radiogroup" aria-label="Background" data-theme-picker></div>
+      <button class="ghost-btn full" id="moreDisplay">Text size, typeface and spacing…</button>
+
+      <h2 class="group-title">Offline</h2>
+      <div class="card">
+        <p class="hint" id="offlineStatus">The King James Bible already works without internet.</p>
+        <button class="wide-btn" id="saveAll">Save everything to this phone</button>
+        <p class="hint">All six versions and the Study tools, about 12 MB. Do this once on Wi-Fi; after that the whole app works in Airplane Mode.</p>
+      </div>
+
+      <h2 class="group-title">Bible audio offline</h2>
+      <div class="card">
+        <p class="hint" id="audioOfflineHint">Save the Voxly recordings of a book to listen without internet, for example on a flight.</p>
+        <ul id="audioBooks" class="audio-books"></ul>
+        <p class="hint" id="audioStorage"></p>
+      </div>
+
+      <h2 class="group-title">Versions</h2>
+      <ul id="versionList" class="card-list"></ul>
+
+      <h2 class="group-title">Listening</h2>
+      <div class="card">
+        <label class="set-row"><span>Audio source</span>
+          <select id="audioSource">
+            <option value="auto">Voxly when available, else iPhone voice</option>
+            <option value="voxly">Voxly recordings only</option>
+            <option value="device">iPhone voice only</option>
+          </select></label>
+        <label class="set-row"><span>Voxly voice</span>
+          <select id="voxlyVoice"><option value="bf_emma">Emma (British, female)</option><option value="bm_george">George (British, male)</option></select></label>
+        <label class="set-row"><span>Voxly audio address</span>
+          <input id="voxlyBase" class="field small" type="url" placeholder="audio/" inputmode="url" autocapitalize="off"></label>
+        <p class="hint" id="voxlyStatus">Voxly recordings are made on your computer with the included tool, then placed in the app's audio folder.</p>
+        <label class="set-row"><span>iPhone voice</span><select id="voiceSelect"></select></label>
+        <div class="voice-row"><p class="hint" id="voiceHint" role="status"></p><button class="ghost-btn" id="testVoice" type="button">▶ Test voice</button></div>
+        <label class="set-row"><span>Continue to next chapter</span><input type="checkbox" id="autoNext" class="switch"></label>
+        <label class="set-row"><span>Follow along (scroll with audio)</span><input type="checkbox" id="followAudio" class="switch"></label>
+      </div>
+
+      <h2 class="group-title">Reading</h2>
+      <div class="card">
+        <label class="set-row"><span>Show verse numbers</span><input type="checkbox" id="showNums" class="switch"></label>
+        <label class="set-row"><span>Paragraph layout</span><input type="checkbox" id="paraMode" class="switch"></label>
+        <label class="set-row"><span>Words of Christ in red <small>(KJV)</small></span><input type="checkbox" id="redLetters" class="switch"></label>
+        <label class="set-row"><span>Added words in italics <small>(KJV, as printed)</small></span><input type="checkbox" id="italics" class="switch"></label>
+        <label class="set-row"><span>Show cross-references in Study</span><input type="checkbox" id="showXrefs" class="switch"></label>
+      </div>
+
+      <h2 class="group-title">About</h2>
+      <div class="card about">
+        <p>All texts are in the public domain. The King James Version is stored on this phone and works without a connection. Other versions download once and then work offline.</p>
+        <p>Your notes, highlights and bookmarks stay on this phone. Use <b>Export backup</b> in Notes to keep a copy.</p>
+        <p class="muted" id="buildInfo"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Player -->
+<div id="player" class="player" role="region" aria-label="Audio player" hidden>
+  <div class="player-progress" aria-hidden="true"><div id="playerBar"></div></div>
+  <div class="player-row">
+    <div class="player-info">
+      <div id="playerTitle" class="player-title">Genesis 1</div>
+      <div id="playerSub" class="player-sub" role="status" aria-live="polite">Ready</div>
+    </div>
+    <button class="icon-btn" id="pBack" aria-label="Previous verse"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6L10 12l8 6zM7 6v12"/></svg></button>
+    <button class="play-btn" id="pPlay" aria-label="Play"><svg id="playIcon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
+    <button class="icon-btn" id="pFwd" aria-label="Next verse"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l8 6-8 6zM17 6v12"/></svg></button>
+    <button class="speed-btn" id="pSpeed" aria-label="Playback speed 1 times">1×</button>
+    <button class="icon-btn" id="pClose" aria-label="Close player"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+</div>
+
+<!-- Tab bar -->
+<nav class="tabbar" aria-label="Main">
+  <button class="tab active" data-view="read" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2zM12 6v14"/></svg><span>Read</span></button>
+  <button class="tab" data-view="listen" id="listenTab"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0116 0v2M4 14h3v6H4zM17 14h3v6h-3z"/></svg><span>Listen</span></button>
+  <button class="tab" data-view="study"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6z"/><path d="M5 19h14"/></svg><span>Study</span></button>
+  <button class="tab" data-view="notes"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5zM14 4v5h5M8 13h8M8 17h5"/></svg><span>Notes</span></button>
+  <button class="tab" data-view="more"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span>Settings</span></button>
+</nav>
+
+<!-- Sheets -->
+<div id="scrim" class="scrim" hidden></div>
+
+<div id="sheet-ref" class="sheet" role="dialog" aria-modal="true" aria-labelledby="refTitle" hidden>
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="refTitle">Choose a book</h2><button class="text-btn" data-close>Done</button></div>
+  <div class="seg" role="tablist" aria-label="Testament">
+    <button role="tab" aria-selected="true" data-test="ot">Old Testament</button>
+    <button role="tab" aria-selected="false" data-test="nt">New Testament</button>
+  </div>
+  <div id="bookGrid" class="book-grid"></div>
+  <div id="chapterGrid" class="chapter-grid" hidden></div>
+</div>
+
+<div id="sheet-ver" class="sheet" role="dialog" aria-modal="true" aria-labelledby="verTitle" hidden>
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="verTitle">Version</h2><button class="text-btn" data-close>Done</button></div>
+  <ul id="verPick" class="pick-list"></ul>
+  <h3 class="group-title">Side by side</h3>
+  <ul id="parPick" class="pick-list"></ul>
+</div>
+
+<div id="sheet-text" class="sheet" role="dialog" aria-modal="true" aria-labelledby="textTitle" hidden>
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="textTitle">Appearance</h2><button class="text-btn" data-close>Done</button></div>
+  <div class="theme-row" role="radiogroup" aria-label="Background" data-theme-picker></div>
+  <div class="size-row">
+    <button class="circle-btn" id="fontDown" aria-label="Smaller text">A</button>
+    <input type="range" id="fontSize" min="15" max="34" step="1" aria-label="Text size">
+    <button class="circle-btn big" id="fontUp" aria-label="Larger text">A</button>
+  </div>
+  <div class="seg" role="radiogroup" aria-label="Typeface">
+    <button role="radio" data-font="garamond" style="font-family:var(--garamond);font-size:16px">Garamond</button>
+    <button role="radio" data-font="newyork" style="font-family:var(--serif)">New York</button>
+    <button role="radio" data-font="sans">Sans</button>
+    <button role="radio" data-font="dyslexic">Readable</button>
+  </div>
+  <label class="set-row"><span>Line spacing</span><input type="range" id="lineH" min="1.4" max="2.2" step="0.1" aria-label="Line spacing"></label>
+</div>
+
+<div id="sheet-verse" class="sheet" role="dialog" aria-modal="true" aria-labelledby="verseTitle" hidden>
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="verseTitle">John 3:16</h2><button class="text-btn" data-close>Done</button></div>
+  <p id="versePreview" class="verse-preview"></p>
+  <div class="hl-row" role="group" aria-label="Highlight colour">
+    <button class="hl-dot" data-hl="gold" aria-label="Gold highlight"></button>
+    <button class="hl-dot" data-hl="sage" aria-label="Green highlight"></button>
+    <button class="hl-dot" data-hl="sky" aria-label="Blue highlight"></button>
+    <button class="hl-dot" data-hl="rose" aria-label="Pink highlight"></button>
+    <button class="hl-dot" data-hl="lav" aria-label="Purple highlight"></button>
+    <button class="hl-dot none" data-hl="" aria-label="Remove highlight">✕</button>
+  </div>
+  <div class="action-grid">
+    <button id="actNote"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>Note</button>
+    <button id="actBookmark"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Bookmark</span></button>
+    <button id="actListen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>Listen</button>
+    <button id="actCopy"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>Copy</button>
+    <button id="actShare"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/></svg>Share</button>
+    <button id="actCompare"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h7v14H4zM13 5h7v14h-7z"/></svg>Compare</button>
+    <button id="actStudy" class="feature"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6z"/></svg>Study verse</button>
+    <button id="actThread"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.3 7.2l7.4 3.6M15.7 13.2l-7.4 3.6"/></svg>Add to thread</button>
+  </div>
+  <div id="compareBox" class="compare" hidden></div>
+</div>
+
+<div id="sheet-note" class="sheet tall" role="dialog" aria-modal="true" aria-labelledby="noteTitle" hidden>
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-head">
+    <button class="text-btn" id="noteDelete">Delete</button>
+    <h2 id="noteTitle">Note</h2>
+    <button class="text-btn strong" id="noteSave">Save</button>
+  </div>
+  <p id="noteVerse" class="verse-preview small"></p>
+  <input id="noteHeading" class="field" placeholder="Title (optional)" aria-label="Note title">
+  <textarea id="noteBody" class="note-area" placeholder="Write your thoughts… Tap the microphone on the keyboard to dictate." aria-label="Note text"></textarea>
+  <input id="noteTags" class="field" placeholder="Tags, e.g. prayer, faith" aria-label="Tags" autocapitalize="off">
+</div>
+
+<div id="sheet-thread" class="sheet" role="dialog" aria-modal="true" aria-labelledby="threadPickTitle" hidden>
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="threadPickTitle">Add to a thread</h2><button class="text-btn" data-close>Done</button></div>
+  <p class="hint">A thread links verses on one subject, in the order you choose, so scripture can be read beside scripture.</p>
+  <ul id="threadPick" class="pick-list"></ul>
+  <form id="newThreadForm" class="new-thread"><input id="newThreadName" class="field" placeholder="New thread, e.g. The Lamb of God" aria-label="New thread name"><button class="ver-action" type="submit">Create</button></form>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="app.js"></script>
+<script src="study.js"></script>
+</body>
+</html>

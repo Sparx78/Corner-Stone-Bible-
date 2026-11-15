@@ -1,0 +1,5 @@
+# Voxly recordings are large: upload them to the web host, not to git
+audio/*
+!audio/README.txt
+__pycache__/
+.DS_Store
