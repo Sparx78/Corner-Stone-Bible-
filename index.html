@@ -157,8 +157,16 @@
     <button class="play-btn" id="pPlay" aria-label="Play"><svg id="playIcon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
     <button class="icon-btn" id="pFwd" aria-label="Next verse"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l8 6-8 6zM17 6v12"/></svg></button>
     <button class="speed-btn" id="pSpeed" aria-label="Playback speed 1 times">1×</button>
+    <button class="icon-btn" id="pMin" aria-label="Minimise player"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 10l6 6 6-6"/></svg></button>
     <button class="icon-btn" id="pClose" aria-label="Close player"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
+</div>
+
+<!-- Minimised player: a small floating control you can drag anywhere -->
+<div id="playerBubble" class="bubble" role="region" aria-label="Audio player, minimised" hidden>
+  <svg class="bubble-ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29" class="track"/><circle cx="32" cy="32" r="29" class="fill" id="bubbleRing"/></svg>
+  <button class="bubble-play" id="bPlay" aria-label="Play"><svg viewBox="0 0 24 24" aria-hidden="true" id="bIcon"><path d="M8 5l11 7-11 7z"/></svg></button>
+  <button class="bubble-open" id="bOpen" aria-label="Show the full player"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14l5-5 5 5"/></svg></button>
 </div>
 
 <!-- Tab bar -->

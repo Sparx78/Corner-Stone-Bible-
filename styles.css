@@ -459,3 +459,23 @@ i.added { color: var(--ink-2); }
 .mini.play { background: var(--gold-soft); color: var(--gold); font-size: 11px; min-width: 34px; }
 .ghost-btn.listen { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
 .ghost-btn.full.listen { margin: 6px 0 2px; min-height: 44px; }
+
+/* Minimised player: a floating, draggable button with a progress ring */
+.bubble {
+  position: fixed; z-index: 35; width: 64px; height: 64px; border-radius: 50%; touch-action: none; user-select: none;
+  background: var(--player-bg); color: var(--player-ink); box-shadow: var(--shadow), 0 0 0 1px rgba(216, 180, 110, .3);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); cursor: grab;
+}
+.bubble.dragging { cursor: grabbing; transform: scale(1.08); box-shadow: var(--shadow), 0 0 22px rgba(216, 180, 110, .45); }
+.bubble-ring { position: absolute; inset: 0; width: 64px; height: 64px; transform: rotate(-90deg); pointer-events: none; }
+.bubble-ring circle { fill: none; stroke-width: 3; }
+.bubble-ring .track { stroke: rgba(255, 255, 255, .15); }
+.bubble-ring .fill { stroke: var(--gold-2); stroke-linecap: round; transition: stroke-dashoffset .3s linear; }
+.bubble-play { position: absolute; inset: 9px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(160deg, var(--gold-2), var(--gold)); color: #fff; }
+.bubble-play svg { width: 22px; height: 22px; fill: currentColor; stroke: none; }
+.bubble-open { position: absolute; top: -8px; right: -8px; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .2); }
+.bubble-open svg { width: 16px; height: 16px; }
+@media (prefers-reduced-motion: reduce) { .bubble.dragging { transform: none; } }
+.bubble-open::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; } /* a bigger area to tap */

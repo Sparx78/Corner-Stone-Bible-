@@ -553,7 +553,14 @@ const player = {
     markReading(r.v);
     this.status("Finished · " + refLabel(r));
   },
-  show() { $("#player").hidden = false; document.body.classList.add("playing"); this.active = true; $("#listenTab").classList.add("active"); },
+  show() { this.active = true; $("#listenTab").classList.add("active"); this.layout(); },
+  layout() { // full player docked above the tabs, or the small floating button
+    const min = this.active && S.playerMin;
+    $("#player").hidden = !this.active || min; $("#playerBubble").hidden = !min;
+    document.body.classList.toggle("playing", this.active && !min);
+    if (min) placeBubble();
+  },
+  minimise(on) { S.playerMin = on; saveSettings(); this.layout(); (on ? $("#bPlay") : $("#pMin")).focus(); },
   play(v = this.verse) {
     if (!this.engine) { toast("No Voxly recording for this chapter. Switch audio source to include the iPhone voice."); return; }
     this.verse = Math.max(0, Math.min(v, this.verses.length - 1));
@@ -582,7 +589,7 @@ const player = {
     speechSynthesis.speak(u);
     this.status(`iPhone voice · verse ${i + 1} of ${this.verses.length}`);
     if (i === 0 && voice && voiceQuality(voice) <= 0 && !this.warned) { this.warned = true; toast("Basic iPhone voice. For a clearer one, see Settings → Listening"); }
-    $("#playerBar").style.width = ((i + 1) / this.verses.length) * 100 + "%";
+    setProgress((i + 1) / this.verses.length);
   },
   next() {
     if (this.sleepCheck()) return;
@@ -604,11 +611,13 @@ const player = {
     if (v >= this.verses.length) { this.chapterEnded(); return; }
     this.playing ? this.play(v) : (this.verse = v, markReading(v));
   },
-  close() { this.pause(); this.queue = null; this.stopAt = null; this.active = false; $("#player").hidden = true; document.body.classList.remove("playing"); $("#listenTab").classList.remove("active"); markReading(-1); },
+  close() { this.pause(); this.queue = null; this.stopAt = null; this.active = false; this.layout(); $("#listenTab").classList.remove("active"); markReading(-1); },
   toggleFromTab() {
     if (currentView === "study" && window.Study && Study.listen()) return; // Study plays what is on its page
     if (!this.active) this.start(); else if (this.b === pos.b && this.c === pos.c) this.toggle(); else this.start(); },
   updateBtn() {
+    $("#bIcon").innerHTML = this.playing ? '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>' : '<path d="M8 5l11 7-11 7z"/>';
+    $("#bPlay").setAttribute("aria-label", this.playing ? "Pause" : "Play");
     $("#playIcon").innerHTML = this.playing ? '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>' : '<path d="M8 5l11 7-11 7z"/>';
     $("#pPlay").setAttribute("aria-label", this.playing ? "Pause" : "Play");
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = this.playing ? "playing" : "paused";
@@ -633,7 +642,7 @@ audio.addEventListener("timeupdate", () => {
   if (player.stopAt != null && player.playing && (i > player.stopAt || (vs[player.stopAt + 1] != null && t >= vs[player.stopAt + 1] - 0.12))) { player.verseDone(); return; }
   if (i !== player.verse) { player.verse = i; markReading(i); if (player.sleepCheck()) return; }
   const dur = audio.duration || player.timing.duration || 1;
-  $("#playerBar").style.width = (t / dur) * 100 + "%";
+  setProgress(t / dur);
   player.status(`Voxly ${VOXLY_VOICES[player.timing.voiceKey] || ""} · verse ${i + 1} of ${player.verses.length} · ${fmtTime(t)} / ${fmtTime(dur)}`);
 });
 audio.addEventListener("ended", () => { if (player.engine === "voxly" && player.playing) player.stopAt != null ? player.verseDone() : player.chapterEnded(); });
@@ -669,6 +678,41 @@ function englishVoices() {
 function bestVoice() { return englishVoices()[0] || null; }
 function currentVoice() { return speechSynthesis.getVoices().find((x) => x.voiceURI === S.voice) || bestVoice(); }
 $("#pPlay").onclick = () => { unlockAudio(); player.toggle(); };
+$("#pMin").onclick = () => player.minimise(true);
+$("#bOpen").onclick = () => player.minimise(false);
+function setProgress(f) {
+  f = Math.max(0, Math.min(1, f || 0));
+  $("#playerBar").style.width = f * 100 + "%";
+  const ring = $("#bubbleRing"), len = 2 * Math.PI * 29;
+  ring.style.strokeDasharray = len; ring.style.strokeDashoffset = len * (1 - f);
+}
+// The floating button: drag it anywhere; it stays where you leave it (kept on screen, clear of the tab bar).
+function placeBubble() {
+  const el = $("#playerBubble"), p = S.bubblePos || { right: 16, bottom: 86 };
+  const w = el.offsetWidth || 64, maxR = innerWidth - w - 8, maxB = innerHeight - w - 8;
+  el.style.right = Math.max(8, Math.min(p.right, maxR)) + "px";
+  el.style.bottom = Math.max(70, Math.min(p.bottom, maxB)) + "px";
+}
+(() => {
+  const el = $("#playerBubble"); let drag = null;
+  el.addEventListener("pointerdown", (e) => {
+    const r = el.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, right: innerWidth - r.right, bottom: innerHeight - r.bottom, moved: false, id: e.pointerId };
+  });
+  addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 8) return;          // small movements are taps
+    if (!drag.moved) { drag.moved = true; el.classList.add("dragging"); }
+    S.bubblePos = { right: drag.right - dx, bottom: drag.bottom - dy }; placeBubble();
+    e.preventDefault();
+  });
+  const end = () => { if (drag && drag.moved) { saveSettings(); el.classList.remove("dragging"); el.dataset.justDragged = "1"; setTimeout(() => delete el.dataset.justDragged, 50); } drag = null; };
+  addEventListener("pointerup", end); addEventListener("pointercancel", end);
+  el.addEventListener("click", (e) => { if (el.dataset.justDragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+  $("#bPlay").onclick = () => { unlockAudio(); player.toggle(); };
+  addEventListener("resize", () => { if (!el.hidden) placeBubble(); });
+})();
 $("#pBack").onclick = () => player.skip(-1);
 $("#pFwd").onclick = () => player.skip(1);
 $("#pClose").onclick = () => player.close();
