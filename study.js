@@ -316,7 +316,7 @@ function threadAction(act, el) {
 function readThread(t) {
   if (!("speechSynthesis" in window)) return toast("Speech is not available");
   speechSynthesis.cancel();
-  const voice = speechSynthesis.getVoices().find((x) => x.voiceURI === S.voice) || bestVoice();
+  const voice = currentVoice();
   t.items.forEach((it) => {
     const u = new SpeechSynthesisUtterance(`${refLabel(it.ref).replace(":", ", verse ")}. ${kjvText(it.ref)}`);
     if (voice) u.voice = voice; u.rate = S.rate; speechSynthesis.speak(u);

@@ -450,3 +450,4 @@ i.added { color: var(--ink-2); }
 :root[data-theme="heavens"] .christ, :root[data-theme="night"] .christ { color: #ff8a80; }
 @media (prefers-color-scheme: dark) { :root[data-theme="auto"] .christ { color: #ff8a80; } }
 .tab span { font-size: 10px; }
+.voice-row { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 0 10px; } .voice-row .hint { flex: 1; margin: 0; } .voice-row .ghost-btn { flex: none; padding: 0 14px; }

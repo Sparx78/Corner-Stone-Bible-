@@ -483,9 +483,9 @@ function unlockAudio() {
   if (unlocked) return; unlocked = true;
   try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch {}
   try {
-    const n = 800, buf = new ArrayBuffer(44 + n * 2), d = new DataView(buf), w = (o, s) => [...s].forEach((ch, i) => d.setUint8(o + i, ch.charCodeAt(0)));
+    const n = 4410, buf = new ArrayBuffer(44 + n * 2), d = new DataView(buf), w = (o, s) => [...s].forEach((ch, i) => d.setUint8(o + i, ch.charCodeAt(0)));
     w(0, "RIFF"); d.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
-    d.setUint32(24, 8000, true); d.setUint32(28, 16000, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); w(36, "data"); d.setUint32(40, n * 2, true);
+    d.setUint32(24, 44100, true); d.setUint32(28, 88200, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); w(36, "data"); d.setUint32(40, n * 2, true);
     if (!audio.src) { audio.src = URL.createObjectURL(new Blob([buf], { type: "audio/wav" })); audio.play().catch(() => {}); }
   } catch {}
 }
@@ -540,13 +540,14 @@ const player = {
     const i = this.verse, title = ((bibles[S.version].titles || {})[this.b] || {})[this.c];
     const head = this.b === 18 ? `Psalm ${this.c + 1}. ` : `${bookName(this.b)}, chapter ${this.c + 1}. `;
     const u = new SpeechSynthesisUtterance((i === 0 ? head + (title ? title + " " : "") : "") + this.verses[i]);
-    const voice = speechSynthesis.getVoices().find((x) => x.voiceURI === S.voice) || bestVoice();
+    const voice = currentVoice();
     if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "en-GB";
-    u.rate = S.rate; u._i = i;
+    u.rate = S.rate; u.pitch = 1; u.volume = 1; u._i = i;
     u.onend = () => { if (!this.playing || this.engine !== "device" || this.verse !== u._i) return; this.next(); };
     u.onerror = (e) => { if (e.error !== "interrupted" && e.error !== "canceled") { this.playing = false; this.updateBtn(); this.status("Speech stopped: " + e.error); } };
     speechSynthesis.speak(u);
     this.status(`iPhone voice · verse ${i + 1} of ${this.verses.length}`);
+    if (i === 0 && voice && voiceQuality(voice) <= 0 && !this.warned) { this.warned = true; toast("Basic iPhone voice. For a clearer one, see Settings → Listening"); }
     $("#playerBar").style.width = ((i + 1) / this.verses.length) * 100 + "%";
   },
   next() {
@@ -609,11 +610,24 @@ function markReading(v) {
     if (r.top < 90 || r.bottom > innerHeight - 200) autoScrollAt = Date.now(), el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 }
-function bestVoice() {
-  const vs = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
-  const score = (v) => (/premium|enhanced|natural|neural/i.test(v.name + v.voiceURI) ? 10 : 0) + (v.lang === "en-GB" ? 3 : v.lang === "en-US" ? 2 : 0) + (/daniel|serena|arthur|kate|samantha|ava|evan|zoe/i.test(v.name) ? 2 : 0) - (/compact|eloquence|novelty|bells|bad|bubbles|zarvox|whisper|jester|organ|trinoids/i.test(v.name + v.voiceURI) ? 20 : 0);
-  return vs.sort((a, b) => score(b) - score(a))[0] || null;
+// iOS gives web pages its small "compact" voices unless better ones have been downloaded in Settings;
+// those sound muffled ("in a tunnel"). Rank voices by quality and say which is which.
+function voiceQuality(v) {
+  const id = (v.voiceURI + " " + v.name).toLowerCase();
+  if (/premium/.test(id)) return 3;
+  if (/enhanced|natural|neural/.test(id)) return 2;
+  if (/eloquence|novelty|speech\.synthesis|bells|bubbles|zarvox|whisper|jester|organ|trinoids|bad news|good news|boing|cellos|hysterical|wobble|albert|fred|junior|kathy|ralph|superstar|grandma|grandpa|rocko|shelley|reed|sandy|flo|eddy/.test(id)) return -5;
+  if (/compact/.test(id)) return 0;
+  return 1; // unknown: other browsers/devices
 }
+const QUALITY_LABEL = { 3: "premium", 2: "enhanced", 1: "", 0: "basic", "-5": "novelty" };
+function englishVoices() {
+  const vs = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+  const score = (v) => voiceQuality(v) * 10 + (v.lang === "en-GB" ? 3 : v.lang === "en-US" ? 2 : 0) + (/daniel|serena|jamie|malcolm|stephanie|kate|arthur|ava|zoe|evan/i.test(v.name) ? 1 : 0);
+  return vs.sort((a, b) => score(b) - score(a));
+}
+function bestVoice() { return englishVoices()[0] || null; }
+function currentVoice() { return speechSynthesis.getVoices().find((x) => x.voiceURI === S.voice) || bestVoice(); }
 $("#pPlay").onclick = () => { unlockAudio(); player.toggle(); };
 $("#pBack").onclick = () => player.skip(-1);
 $("#pFwd").onclick = () => player.skip(1);
@@ -659,10 +673,23 @@ $("#versionList").onclick = async (e) => {
   }
 };
 function fillVoices() {
-  const vs = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
-  const best = bestVoice();
-  $("#voiceSelect").innerHTML = `<option value="">Automatic${best ? " (" + esc(best.name) + ")" : ""}</option>` +
-    vs.map((v) => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === S.voice ? "selected" : ""}>${esc(v.name)} · ${v.lang}</option>`).join("");
+  const vs = englishVoices().filter((v) => voiceQuality(v) > -5);
+  const best = vs[0];
+  const label = (v) => { const q = QUALITY_LABEL[voiceQuality(v)]; return `${v.name}${q ? " (" + q + ")" : ""} · ${v.lang.replace("en-", "")}`; };
+  $("#voiceSelect").innerHTML = `<option value="">Best available${best ? " — " + esc(label(best)) : ""}</option>` +
+    vs.map((v) => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === S.voice ? "selected" : ""}>${esc(label(v))}</option>`).join("");
+  const cur = currentVoice(), hint = $("#voiceHint");
+  if (!cur) { hint.innerHTML = "No English voice found on this device."; hint.className = "hint warn"; return; }
+  if (voiceQuality(cur) <= 0) {
+    hint.innerHTML = "This is the iPhone's <b>basic</b> voice, which can sound muffled. For a clear, natural voice: iPhone <b>Settings → Accessibility → Spoken Content → Voices → English</b>, download a voice marked <b>Enhanced</b> or <b>Premium</b> (for example Jamie, Serena or Daniel), then close and reopen this app.";
+    hint.className = "hint warn";
+  } else { hint.textContent = `Using ${cur.name} (${QUALITY_LABEL[voiceQuality(cur)] || "standard"} quality).`; hint.className = "hint ok"; }
+}
+function testVoice() {
+  unlockAudio(); speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance("The LORD is my shepherd; I shall not want.");
+  const v = currentVoice(); if (v) { u.voice = v; u.lang = v.lang; }
+  u.rate = S.rate; u.pitch = 1; u.volume = 1; speechSynthesis.speak(u);
 }
 if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => { if (currentView === "more") fillVoices(); };
 async function checkVoxly() {
@@ -676,7 +703,8 @@ async function checkVoxly() {
 }
 $("#audioSource").onchange = (e) => { S.audioSource = e.target.value; saveSettings(); if (player.active) player.load(player.b, player.c); };
 $("#voxlyBase").onchange = (e) => { S.voxlyBase = e.target.value.trim() || "audio/"; saveSettings(); checkVoxly(); };
-$("#voiceSelect").onchange = (e) => { S.voice = e.target.value; saveSettings(); const u = new SpeechSynthesisUtterance("In the beginning was the Word."); const v = speechSynthesis.getVoices().find((x) => x.voiceURI === S.voice) || bestVoice(); if (v) u.voice = v; u.rate = S.rate; speechSynthesis.cancel(); speechSynthesis.speak(u); };
+$("#voiceSelect").onchange = (e) => { S.voice = e.target.value; saveSettings(); fillVoices(); testVoice(); };
+$("#testVoice").onclick = testVoice;
 [["autoNext"], ["followAudio"], ["showNums", true], ["paraMode", true], ["redLetters", true], ["italics", true], ["showXrefs"]].forEach(([k, rerender]) => ($("#" + k).onchange = (e) => { S[k] = e.target.checked; saveSettings(); if (rerender) render(); }));
 
 // ------------------------------------------------------------------ start
