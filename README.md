@@ -25,7 +25,7 @@ The app has to be served from an **https** web address once; after that it lives
 **Easiest: GitHub Pages (free, this repository is public).** On github.com open this repository → **Settings** → **Pages** →
 *Source: Deploy from a branch*, *Branch: main*, folder */ (root)* → **Save**. A minute later the app is at
 `https://sparx78.github.io/Corner-Stone-Bible-/`. Then do steps 2–4 below on the iPhone. Every change merged into `main` updates the site.
-The Voxly recordings are too large for git; host them as described in VOXLY-AUDIO.md and set *Voxly audio address* in Settings.
+The Voxly recordings in `audio/` are part of this repository, so the GitHub Pages site plays them too.
 
 **Or Netlify Drop (includes the audio):**
 

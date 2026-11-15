@@ -11,7 +11,7 @@ Choose between them in the app: Settings → Listening → *Voxly voice*.
 ## What is already recorded
 
 Made with the same Kokoro model your Voxly uses (`kokoro-v1.0.onnx`, speed 0.9, British English):
-Jude (Emma), and John and Psalms in both voices. They are in `audio/KJV/bf_emma/` and `audio/KJV/bm_george/`.
+John in both voices and Jude (Emma); Psalms is being recorded in both. They are in `audio/KJV/bf_emma/` and `audio/KJV/bm_george/`.
 
 ## Record more on your PC, through Voxly
 
@@ -40,12 +40,12 @@ The words on screen are unchanged.
 
 ## Put the recordings online
 
-The `audio` folder must sit next to `index.html` on your web host. Upload the whole app folder again after
-adding recordings. Netlify's free plan suits a few books. For the whole Bible in both voices (about 4 GB), use
-**Cloudflare Pages** (free, files up to 25 MB; the longest chapter, Psalm 119, is about 12 MB).
+The recordings live in this repository under `audio/`, next to `index.html`, so GitHub Pages serves them with the app.
+After recording more, commit the new `audio` files (and the updated `audio/index.json`) to `main`.
 
-If you keep the audio on another site, put its address in Settings → Listening → *Voxly audio address*, ending in `/`.
-That site must allow the app's site to read its files (CORS).
+GitHub Pages sites are limited to about 1 GB. That is room for roughly 35 hours of listening in one voice, or a
+selection of books in both voices. For the whole Bible (about 2 GB per voice), host the `audio` folder on
+**Cloudflare Pages** (free) and put its address in Settings → Listening → *Voxly audio address*, ending in `/`.
 
 ## The timing file
 
