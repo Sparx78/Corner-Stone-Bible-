@@ -1,9 +1,9 @@
 # Corner Stone Bible
 
-
 *"The stone which the builders refused is become the head stone of the corner."* — Psalm 118:22
 
 The app is called **Scripture** on the Home Screen.
+
 Read, listen and take notes. The King James Version is the main text, and five more public-domain versions
 can be added from Settings. No App Store, no Apple developer account, no sign-in: it is a web app that you
 add to your Home Screen. Once added, it opens full-screen like any other app and works with no connection.
@@ -20,9 +20,16 @@ add to your Home Screen. Once added, it opens full-screen like any other app and
 ## Put it on your iPhone
 
 The app has to be served from an **https** web address once; after that it lives on the phone.
-The simplest free option that needs no account set-up beyond an email address:
 
-1. **Netlify Drop** — go to <https://app.netlify.com/drop> on a computer and drag the whole `bible-app` folder onto the page.
+
+**Easiest: GitHub Pages (free, this repository is public).** On github.com open this repository → **Settings** → **Pages** →
+*Source: Deploy from a branch*, *Branch: main*, folder */ (root)* → **Save**. A minute later the app is at
+`https://sparx78.github.io/Corner-Stone-Bible-/`. Then do steps 2–4 below on the iPhone. Every change merged into `main` updates the site.
+The Voxly recordings are too large for git; host them as described in VOXLY-AUDIO.md and set *Voxly audio address* in Settings.
+
+**Or Netlify Drop (includes the audio):**
+
+1. Go to <https://app.netlify.com/drop> on a computer and drag the whole app folder (with its `audio` folder) onto the page.
    You get an address like `https://something.netlify.app`. (Cloudflare Pages works the same way and is better
    for the whole-Bible audio; see VOXLY-AUDIO.md.)
 2. On the iPhone, open that address in **Safari**.

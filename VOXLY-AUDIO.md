@@ -19,7 +19,7 @@ Use the same PowerShell and Python environment you use for `tyson_export.py`. FF
 (`winget install ffmpeg`) so the recordings can be saved as MP3.
 
 ```
-cd path\to\bible-app
+cd path\to\Corner-Stone-Bible-
 python tools\voxly_bible_audio.py --voxly C:\G_Labs\Voxly --books "Genesis,Romans" --voice bf_emma
 python tools\voxly_bible_audio.py --voxly C:\G_Labs\Voxly --books "Genesis,Romans" --voice bm_george
 python tools\voxly_bible_audio.py --voxly C:\G_Labs\Voxly --all --voice bf_emma
@@ -40,7 +40,7 @@ The words on screen are unchanged.
 
 ## Put the recordings online
 
-The `audio` folder must sit next to `index.html` on your web host. Upload the whole `bible-app` folder again after
+The `audio` folder must sit next to `index.html` on your web host. Upload the whole app folder again after
 adding recordings. Netlify's free plan suits a few books. For the whole Bible in both voices (about 4 GB), use
 **Cloudflare Pages** (free, files up to 25 MB; the longest chapter, Psalm 119, is about 12 MB).
 
