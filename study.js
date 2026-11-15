@@ -111,7 +111,7 @@ async function draw() {
   const top = stack[stack.length - 1];
   window.scrollTo(0, 0);
   if (!ST.words) studyPage.innerHTML = `<p class="empty"><span class="big">Opening the scriptures…</span>The first time, the study texts download (about 2 MB). After that they work offline.</p>`;
-  try { await loadStudy(S.showXrefs !== false || top.type === "passage"); await getBible("KJV"); }
+  try { await loadStudy(S.showXrefs !== false || top.type === "passage" || top.type === "book"); await getBible("KJV"); }
   catch { studyPage.innerHTML = `<p class="empty"><span class="big">Could not load the study texts.</span>Connect to the internet once, then try again.</p>`; return; }
   const crumbs = stack.length > 2 ? `<nav class="crumbs" aria-label="Your path">${stack.slice(1).map((e, i) => `<button data-crumb="${i + 1}">${esc(crumbLabel(e))}</button>`).join("<span aria-hidden='true'>›</span>")}</nav>` : "";
   const head = stack.length > 1 ? `<div class="study-top"><button class="text-btn" id="studyBack">‹ Back</button>${crumbs}</div>` : "";
@@ -123,6 +123,7 @@ async function draw() {
   else if (top.type === "thread") body = threadHTML(top);
   else if (top.type === "person") body = personHTML(top);
   else if (top.type === "passage") body = passageHTML(top);
+  else if (top.type === "book") body = bookHTML(top);
   studyPage.innerHTML = head + body;
   const b = $("#studyBack"); if (b) b.onclick = back;
 }
@@ -131,12 +132,13 @@ function crumbLabel(e) {
   if (e.type === "verse") return refLabel(e.ref);
   if (e.type === "search") return `“${e.q}”`;
   if (e.type === "person") return e.name;
+  if (e.type === "book") return bookName(e.b);
   if (e.type === "passage") return e.title || passageLabel(e);
   if (e.type === "thread") return (A.threads.find((t) => t.id === e.id) || {}).title || "Thread";
   return "Study";
 }
 studyPage.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-person],[data-passage],[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
+  const t = e.target.closest("[data-book],[data-person],[data-passage],[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
   if (!t) return;
   const d = t.dataset;
   if (d.crumb) { stack = stack.slice(0, +d.crumb + 1); draw(); }
@@ -145,6 +147,7 @@ studyPage.addEventListener("click", (e) => {
   else if (d.read) { const r = parseKey(d.read); showView("read"); goTo(r.b, r.c, r.v); }
   else if (d.thread) go({ type: "thread", id: d.thread });
   else if (d.person) go({ type: "person", name: d.person, page: 1 });
+  else if (d.book != null) go({ type: "book", b: +d.book });
   else if (d.passage) { const [b, c1, c2] = d.passage.split(".").map(Number); go({ type: "passage", b, c1, c2, title: d.title || "", page: 1 }); }
   else if (d.q) go({ type: "search", q: d.q });
   else if ("more" in d) { stack[stack.length - 1].page++; draw(); }
@@ -173,6 +176,9 @@ function homeHTML() {
   <h2 class="group-title">Begin at the foundation</h2>
   <p class="hint">Choose a word: see the Hebrew or Greek word behind it, where scripture first uses it, and every place it is used after.</p>
   <div class="chips">${FOUNDATION_WORDS.map((w) => `<button class="chip" data-q="${w}">${w}</button>`).join("")}</div>
+  <h2 class="group-title">The books</h2>
+  <p class="hint">Each book introduced in scripture's own words: who wrote it, when and where, and why, as the Bible itself records.</p>
+  <div class="book-mini">${BOOKS.map((x, i) => `<button data-book="${i}" class="${i === NT_START ? "nt-start" : ""}">${esc(shortName(i))}</button>`).join("")}</div>
   <h2 class="group-title">Lives &amp; events</h2>
   <p class="hint">Follow a life or an event through the whole Bible: where scripture foretells it, tells it, remembers it, and explains it. Type any name in the box above, or choose:</p>
   <div class="chips">${PEOPLE.map((n) => `<button class="chip" data-person="${n}">${n}</button>`).join("")}</div>
@@ -286,7 +292,7 @@ function verseHTML(top) {
   return `<h1 class="page-title">${esc(refLabel(ref))}</h1>
     <p class="study-verse">${wordsLine}</p>
     <p class="hint">Tap any word to follow it through scripture. <i class="added">Words like this</i> were added by the translators to make the English read; they are not in the Hebrew or Greek.</p>
-    <div class="row-btns tight"><button class="ghost-btn listen" data-listen="${k}">▶ Listen to this verse</button><button class="ghost-btn" data-listenfrom="${k}">▶ Read on from here</button><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button><button class="ghost-btn full" data-passage="${ref.b}.${ref.c}.${ref.c}" data-title="${esc(bookName(ref.b) + " " + (ref.c + 1))}">What scripture says of ${esc(bookName(ref.b))} ${ref.c + 1}, before and after ›</button></div>
+    <div class="row-btns tight"><button class="ghost-btn listen" data-listen="${k}">▶ Listen to this verse</button><button class="ghost-btn" data-listenfrom="${k}">▶ Read on from here</button><button class="ghost-btn" data-read="${k}">Read in chapter</button><button class="ghost-btn" data-tact="add" data-k="${k}">＋ Add to thread</button><button class="ghost-btn full" data-book="${ref.b}">About the book of ${esc(bookName(ref.b))} ›</button><button class="ghost-btn full" data-passage="${ref.b}.${ref.c}.${ref.c}" data-title="${esc(bookName(ref.b) + " " + (ref.c + 1))}">What scripture says of ${esc(bookName(ref.b))} ${ref.c + 1}, before and after ›</button></div>
     <h2 class="group-title">In its place</h2>
     <div class="card ctx-card">${contextHTML(ref, 4, 4)}</div>
     <h2 class="group-title">The words of this verse</h2>
@@ -448,6 +454,62 @@ function passageHTML(top) {
     ${group(ntPassage ? "Elsewhere in the New Testament" : "Explained in the New Testament", nt, 60)}
     ${!uniq.length ? `<p class="empty">No other verses are linked to this passage.</p>` : ""}
     <p class="hint sources">Linked by the verse-to-verse cross-references; each verse shows the place it points to.</p>`;
+}
+
+// ------------------------------------------------------------------ the books, in their own words
+const DIVINE = new Set(["H430", "H3068", "H136", "H3069", "H410", "H433", "H3050", "G2316", "G2962"]); // God and LORD: not counted as people
+function refFrom(text) { // "1 Samuel 10:25" or "Luke 1:1-4" -> {b, c, v, v2}
+  const m = text.match(/^(.+) (\d+):(\d+)(?:-(\d+))?$/); const b = BOOKS.findIndex((x) => x[0] === m[1]);
+  return { b, c: +m[2] - 1, v: +m[3] - 1, v2: m[4] ? +m[4] - 1 : +m[3] - 1 };
+}
+function quoteList(refs) {
+  return `<ul class="card-list">${refs.map((t) => { const r = refFrom(t); const k = refKey(r.b, r.c, r.v);
+    const text = bibles.KJV.books[r.b][r.c].slice(r.v, r.v2 + 1).map((x, i) => (r.v2 > r.v ? `<sup>${r.v + i + 1}</sup>` : "") + esc(x)).join(" ");
+    return `<li><div class="ref"><button class="link" data-verse="${k}">${esc(t)}</button><span class="row-acts"><button class="mini play" data-listen="${k}" aria-label="Listen to ${esc(t)}">▶</button><button class="mini" data-ctx="1">Context</button></span></div><p class="vt">${text}</p><div class="ctx" hidden>${contextHTML(r)}</div></li>`; }).join("")}</ul>`;
+}
+function bookHTML(top) {
+  const b = top.b, name = bookName(b), notes = BOOK_NOTES[name] || {}, book = bibles.KJV.books[b];
+  const verses = book.reduce((n, ch) => n + ch.length, 0), words = book.reduce((n, ch) => n + ch.reduce((m, t) => m + t.split(/\s+/).length, 0), 0);
+  // the people named most in this book (names are the Hebrew/Greek words the KJV writes with a capital)
+  const { render, cap } = buildIndex(), count = {};
+  ST.words[b].forEach((ch) => ch.forEach((raw) => { let m; SEG.lastIndex = 0; while ((m = SEG.exec(raw))) for (const n of m[2].split(" ")) {
+    if (DIVINE.has(n) || !cap[n]) continue;
+    const total = Object.values(render[n] || {}).reduce((x, y) => x + y, 0);
+    if (cap[n] / total < 0.8) continue;
+    const w = Object.entries(render[n]).sort((x, y) => y[1] - x[1])[0][0];
+    count[w] = (count[w] || 0) + 1;
+  } }));
+  const people = Object.entries(count).filter(([w]) => w.length > 2 && !["red", "most", "high"].includes(w)).sort((x, y) => y[1] - x[1]).slice(0, 14);
+  // the rest of scripture and this book: which books point to it, and which it points to
+  const rev = buildReverse(), from = {}, to = {};
+  book.forEach((ch, c) => (rev.get(b * 1000 + c) || []).forEach(([sb]) => { if (sb !== b) from[sb] = (from[sb] || 0) + 1; }));
+  ST.xrefs[b].forEach((ch) => ch.forEach((line) => line && line.split(" ").forEach((t) => { const tb = +t.split(".")[0]; if (tb !== b) to[tb] = (to[tb] || 0) + 1; })));
+  const top8 = (o) => Object.entries(o).sort((x, y) => y[1] - x[1]).slice(0, 8);
+  const bars = (list) => { const max = Math.max(1, ...list.map((x) => x[1]));
+    return `<div class="dist">${list.map(([bk, n]) => `<button class="dist-row" data-book="${bk}"><span class="bn">${esc(shortName(+bk))}</span><span class="bar"><i style="width:${(n / max) * 100}%"></i></span><span class="bc">${n}</span></button>`).join("")}</div>`; };
+  const last = book.length - 1;
+  const writerTitle = notes.unnamed ? (notes.writer ? "Who wrote it — the writer speaks, but scripture does not give the name" : "Who wrote it — scripture does not name the writer") : "Who wrote it, in scripture's own words";
+  return `<header class="word-head">
+      <p class="book-title">${esc(bookPart(b))}</p>
+      <h1 class="page-title center">${esc(name)}</h1>
+      ${KJV_TITLES[b] ? `<p class="book-sub">${esc(KJV_TITLES[b])}</p>` : ""}
+    </header>
+    <div class="stat-row" role="list"><div role="listitem"><b>${book.length}</b><span>chapter${book.length > 1 ? "s" : ""}</span></div><div role="listitem"><b>${verses.toLocaleString()}</b><span>verses</span></div><div role="listitem"><b>${words.toLocaleString()}</b><span>words</span></div></div>
+    <div class="row-btns tight"><button class="ghost-btn" data-read="${refKey(b, 0, 0)}">Read ${esc(name)}</button><button class="ghost-btn listen" data-listenfrom="${refKey(b, 0, 0)}">▶ Listen from the beginning</button></div>
+    <h2 class="group-title">${writerTitle}</h2>
+    ${notes.writer ? quoteList(notes.writer) : `<p class="hint">The book does not say who wrote it, and no other book of scripture names its writer. Read it as the Bible gives it.</p>`}
+    ${notes.setting ? `<h2 class="group-title">When and where</h2>${quoteList(notes.setting)}` : ""}
+    ${notes.purpose ? `<h2 class="group-title">Why it was written, or what it is for</h2>${quoteList(notes.purpose)}` : ""}
+    ${notes.later ? `<h2 class="group-title">How the rest of scripture speaks of it</h2>${quoteList(notes.later)}` : ""}
+    <h2 class="group-title">How it begins</h2>${quoteList([`${name} 1:1`])}
+    <h2 class="group-title">How it ends</h2>${quoteList([`${name} ${last + 1}:${book[last].length}`])}
+    ${people.length ? `<h2 class="group-title">Names written most: people and places</h2><div class="chips">${people.map(([w, n]) => `<button class="chip" data-person="${esc(cap1(w))}">${esc(cap1(w))} <small>${n}</small></button>`).join("")}</div>` : ""}
+    <h2 class="group-title">Books that point to ${esc(name)} most</h2>${bars(top8(from))}
+    <h2 class="group-title">Books ${esc(name)} points to most</h2>${bars(top8(to))}
+    <h2 class="group-title">Each chapter, before and after</h2>
+    <p class="hint">Open a chapter to see what the rest of scripture says of it.</p>
+    <div class="chapter-grid book-chapters">${book.map((_, c) => `<button data-passage="${b}.${c}.${c}" data-title="${esc(name)} ${c + 1}" aria-label="${esc(name)} chapter ${c + 1}">${c + 1}</button>`).join("")}</div>
+    <p class="hint sources">Every line above is scripture or is counted from it. Nothing is added about dates, places or writers that the Bible does not itself say.</p>`;
 }
 
 // ------------------------------------------------------------------ threads: verses you link on one subject

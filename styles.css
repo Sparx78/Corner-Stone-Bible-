@@ -489,3 +489,12 @@ i.added { color: var(--ink-2); }
 .event-list .ref span:first-child { font-family: var(--display); font-size: 18px; letter-spacing: 0; color: var(--ink); font-weight: 600; }
 .points { display: block; margin-top: 6px; font-size: 12.5px; color: var(--ink-2); }
 .points .link { font-size: 12.5px; min-height: 0; }
+
+/* The books */
+button.book-title { display: block; margin: 0 auto; background: none; border: 0; cursor: pointer; min-height: 32px; }
+button.book-title::after { content: " ⓘ"; font-size: .8em; letter-spacing: 0; opacity: .6; }
+.word-head .book-title::after { content: none; }
+.book-mini { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.book-mini button { min-height: 36px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; padding: 2px 4px; }
+.book-mini button.nt-start { grid-column-start: 1; }
+.book-chapters { margin-bottom: 8px; }

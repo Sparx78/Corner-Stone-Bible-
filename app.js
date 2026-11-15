@@ -118,7 +118,7 @@ async function render(scrollToVerse) {
   const ico = (p) => `<svg aria-hidden="true" viewBox="0 0 24 24"><path d="${p}"/></svg>`;
   const star = `<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M32 0l4.2 23.4L60 32l-23.8 8.6L32 64l-4.2-23.4L4 32l23.8-8.6z"/></svg>`;
   let html = `<header class="chapter-head">
-    <p class="book-title">${esc(bookName(b))}</p>
+    <button class="book-title" data-bookinfo="${b}" aria-label="About the book of ${esc(bookName(b))}">${esc(bookName(b))}</button>
     ${pos.c === 0 && KJV_TITLES[b] ? `<p class="book-sub">${esc(KJV_TITLES[b])}</p>` : ""}
     <h1 aria-label="${esc(bookName(b))} chapter ${pos.c + 1}">${pos.c + 1}</h1>
     <div class="ornament">${star}</div>
@@ -170,6 +170,7 @@ function goTo(b, c, v) { pos = { b, c }; render(v); }
 function step(d) { const n = neighbour(d); if (n) goTo(n.b, n.c); }
 
 reader.addEventListener("click", (e) => {
+  const info = e.target.closest("[data-bookinfo]"); if (info) { Study.open({ type: "book", b: +info.dataset.bookinfo }); return; }
   const el = e.target.closest(".v"); if (!el) return;
   openVerse(+el.dataset.v);
 });
