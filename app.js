@@ -22,6 +22,28 @@ const BOOKS = [
   ["2 John", "2john 2jn 2jo 2j"], ["3 John", "3john 3jn 3jo 3j"], ["Jude", "jude jud jd"], ["Revelation", "rev re rv revelations"],
 ];
 const NT_START = 39;
+// The book titles as printed in the King James Bible, shown at the head of each book.
+const KJV_TITLES = [
+  "The First Book of Moses, called Genesis", "The Second Book of Moses, called Exodus", "The Third Book of Moses, called Leviticus",
+  "The Fourth Book of Moses, called Numbers", "The Fifth Book of Moses, called Deuteronomy", "The Book of Joshua", "The Book of Judges",
+  "The Book of Ruth", "The First Book of Samuel, otherwise called the First Book of the Kings",
+  "The Second Book of Samuel, otherwise called the Second Book of the Kings", "The First Book of the Kings, commonly called the Third Book of the Kings",
+  "The Second Book of the Kings, commonly called the Fourth Book of the Kings", "The First Book of the Chronicles", "The Second Book of the Chronicles",
+  "The Book of Ezra", "The Book of Nehemiah", "The Book of Esther", "The Book of Job", "The Book of Psalms", "The Proverbs",
+  "Ecclesiastes; or, the Preacher", "The Song of Solomon", "The Book of the Prophet Isaiah", "The Book of the Prophet Jeremiah",
+  "The Lamentations of Jeremiah", "The Book of the Prophet Ezekiel", "The Book of Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah",
+  "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+  "The Gospel according to Saint Matthew", "The Gospel according to Saint Mark", "The Gospel according to Saint Luke",
+  "The Gospel according to Saint John", "The Acts of the Apostles", "The Epistle of Paul the Apostle to the Romans",
+  "The First Epistle of Paul the Apostle to the Corinthians", "The Second Epistle of Paul the Apostle to the Corinthians",
+  "The Epistle of Paul the Apostle to the Galatians", "The Epistle of Paul the Apostle to the Ephesians",
+  "The Epistle of Paul the Apostle to the Philippians", "The Epistle of Paul the Apostle to the Colossians",
+  "The First Epistle of Paul the Apostle to the Thessalonians", "The Second Epistle of Paul the Apostle to the Thessalonians",
+  "The First Epistle of Paul the Apostle to Timothy", "The Second Epistle of Paul the Apostle to Timothy", "The Epistle of Paul to Titus",
+  "The Epistle of Paul to Philemon", "The Epistle of Paul the Apostle to the Hebrews", "The General Epistle of James",
+  "The First Epistle General of Peter", "The Second Epistle General of Peter", "The First Epistle General of John",
+  "The Second Epistle of John", "The Third Epistle of John", "The General Epistle of Jude", "The Revelation of Saint John the Divine",
+].map((t, i, all) => (all.length === 66 && t.replace(/^The /, "") !== BOOKS[i][0] ? t : null));
 const bookName = (b) => BOOKS[b][0];
 const refLabel = (r) => r ? `${bookName(r.b)} ${r.c + 1}${r.v != null ? ":" + (r.v + 1) : ""}` : "Journal";
 const refKey = (b, c, v) => `${b}.${c}.${v}`;
@@ -32,7 +54,7 @@ const store = {
   set(k, v) { try { localStorage.setItem("scripture." + k, JSON.stringify(v)); } catch { toast("Could not save on this phone"); } },
 };
 const DEFAULTS = {
-  version: "KJV", parallel: "", theme: "light", font: "serif", fontSize: 20, lineH: 1.7, showNums: true, paraMode: false,
+  version: "KJV", parallel: "", theme: "auto", font: "garamond", fontSize: 20, lineH: 1.7, showNums: true, paraMode: false,
   audioSource: "auto", voxlyBase: "audio/", voice: "", rate: 1, autoNext: true, followAudio: true,
 };
 const S = Object.assign({}, DEFAULTS, store.get("settings", {}));
@@ -91,8 +113,12 @@ async function render(scrollToVerse) {
   const parVerses = par ? par.books[b][pos.c] || [] : null;
   const noteRefs = new Set(A.notes.filter((n) => n.ref).map((n) => refKey(n.ref.b, n.ref.c, n.ref.v)));
   const ico = (p) => `<svg aria-hidden="true" viewBox="0 0 24 24"><path d="${p}"/></svg>`;
-  let html = `<div class="book-eyebrow">${esc(bookName(b))}</div>
-    <header class="chapter-head"><h1 aria-label="${esc(bookName(b))} chapter ${pos.c + 1}">${pos.c + 1}</h1><div class="rule"></div>
+  const star = `<svg aria-hidden="true" viewBox="0 0 64 64"><path d="M32 0l4.2 23.4L60 32l-23.8 8.6L32 64l-4.2-23.4L4 32l23.8-8.6z"/></svg>`;
+  let html = `<header class="chapter-head">
+    <p class="book-title">${esc(bookName(b))}</p>
+    ${pos.c === 0 && KJV_TITLES[b] ? `<p class="book-sub">${esc(KJV_TITLES[b])}</p>` : ""}
+    <h1 aria-label="${esc(bookName(b))} chapter ${pos.c + 1}">${pos.c + 1}</h1>
+    <div class="ornament">${star}</div>
     <div class="ver-label">${esc(verInfo(S.version).name)}${par ? " · " + esc(par.id) : ""}</div></header>
     ${bible.titles && bible.titles[b] && bible.titles[b][pos.c] ? `<p class="ps-title">${esc(bible.titles[b][pos.c])}</p>` : ""}
     <div class="verses${S.paraMode && !par ? " para" : ""}">`;
@@ -100,7 +126,8 @@ async function render(scrollToVerse) {
     const k = refKey(b, pos.c, i);
     const cls = ["v"]; if (A.hl[k]) cls.push("hl-" + A.hl[k]);
     let text = esc(t);
-    if (i === 0 && !S.showNums) text = `<span class="dropcap" aria-hidden="true">${esc(t[0])}</span>${esc(t.slice(1))}`;
+    const m = i === 0 && !par && t.match(/^([^A-Za-z]*)([A-Za-z])/);
+    if (m) { cls.push("first"); text = `${esc(m[1])}<span class="dropcap" aria-hidden="true">${m[2]}</span>${esc(t.slice(m[0].length))}`; }
     html += `<span class="${cls.join(" ")}" data-v="${i}" role="button" tabindex="0" aria-label="Verse ${i + 1}. ${esc(t)}"><span class="n" aria-hidden="true">${i + 1}</span>${text}` +
       (noteRefs.has(k) ? `<span class="note-mark" aria-label="has note">${ico("M4 20h4L19 9l-4-4L4 16z")}</span>` : "") +
       (A.bm[k] ? `<span class="bm-mark" aria-label="bookmarked">${ico("M6 3h12v18l-6-4-6 4z")}</span>` : "") +
@@ -247,18 +274,33 @@ $("#verPick").onclick = (e) => { const b = e.target.closest("[data-ver]"); if (!
 $("#parPick").onclick = (e) => { const b = e.target.closest("[data-par]"); if (!b) return; S.parallel = b.dataset.par; saveSettings(); closeSheet(); render(); };
 
 // display settings
+const THEMES = [ // id, name, a few words, glyph, status-bar colour
+  ["light", "Ivory", "Clean and bright", "☼", "#fbf8f1"],
+  ["sepia", "Parchment", "Warm, like an old Bible", "✠", "#f3ead4"],
+  ["dawn", "Dawn", "First light of morning", "✧", "#f9dcc4"],
+  ["heavens", "Heavens", "Stars upon the deep", "✦", "#070d1a"],
+  ["night", "Night", "True black, easy on eyes", "☾", "#000000"],
+  ["auto", "Auto", "Ivory by day, Heavens by night", "◐", ""],
+];
+if (S.theme === "dark") S.theme = "heavens"; // earlier versions of the app
+if (S.font === "serif") S.font = "garamond";
+$$("[data-theme-picker]").forEach((row) => {
+  row.innerHTML = THEMES.map(([id, n, d, g]) => `<button role="radio" data-theme="${id}" class="theme-chip ${id}" aria-label="${n}: ${d}"><span class="glyph" aria-hidden="true">${g}</span><span class="tn">${n}</span><span class="ts" aria-hidden="true">${d.split(",")[0]}</span></button>`).join("");
+  row.onclick = (e) => { const b = e.target.closest("[data-theme]"); if (!b) return; S.theme = b.dataset.theme; saveSettings(); applyDisplay(); };
+});
 function applyDisplay() {
   const r = document.documentElement;
   r.dataset.theme = S.theme; r.dataset.font = S.font;
   r.style.setProperty("--font-size", S.fontSize + "px"); r.style.setProperty("--line-h", S.lineH);
-  const dark = S.theme === "dark" || (S.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-  $('meta[name="theme-color"]').content = dark ? "#0d1520" : S.theme === "sepia" ? "#f4ecd8" : "#fbf8f1";
-  $$("[data-theme]", $("#sheet-text")).forEach((b) => b.setAttribute("aria-checked", b.dataset.theme === S.theme));
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const t = THEMES.find((x) => x[0] === S.theme) || THEMES[0];
+  $('meta[name="theme-color"]').content = t[4] || (dark ? "#070d1a" : "#fbf8f1");
+  $$("[data-theme-picker] [data-theme]").forEach((b) => b.setAttribute("aria-checked", b.dataset.theme === S.theme));
   $$("[data-font]", $("#sheet-text")).forEach((b) => b.setAttribute("aria-checked", b.dataset.font === S.font));
   $("#fontSize").value = S.fontSize; $("#lineH").value = S.lineH;
 }
 $("#textBtn").onclick = () => { applyDisplay(); openSheet("sheet-text"); };
-$$("#sheet-text [data-theme]").forEach((b) => (b.onclick = () => { S.theme = b.dataset.theme; saveSettings(); applyDisplay(); }));
+$("#moreDisplay").onclick = () => { applyDisplay(); openSheet("sheet-text"); };
 $$("#sheet-text [data-font]").forEach((b) => (b.onclick = () => { S.font = b.dataset.font; saveSettings(); applyDisplay(); }));
 $("#fontSize").oninput = (e) => { S.fontSize = +e.target.value; saveSettings(); applyDisplay(); };
 $("#fontDown").onclick = () => { S.fontSize = Math.max(15, S.fontSize - 1); saveSettings(); applyDisplay(); };
@@ -632,7 +674,15 @@ $("#voiceSelect").onchange = (e) => { S.voice = e.target.value; saveSettings(); 
 [["autoNext"], ["followAudio"], ["showNums", true], ["paraMode", true]].forEach(([k, rerender]) => ($("#" + k).onchange = (e) => { S[k] = e.target.checked; saveSettings(); if (rerender) render(); }));
 
 // ------------------------------------------------------------------ start
+function opening() {
+  let seen = false; try { seen = sessionStorage.getItem("scripture.opened") === "1"; sessionStorage.setItem("scripture.opened", "1"); } catch {}
+  if (seen || matchMedia("(prefers-reduced-motion: reduce)").matches || navigator.webdriver) return;
+  const o = $("#opening"); o.hidden = false;
+  const end = () => { o.classList.add("fade"); setTimeout(() => (o.hidden = true), 900); };
+  o.onclick = end; setTimeout(end, 2600);
+}
 (async function init() {
+  opening();
   applyDisplay();
   $("#pSpeed").textContent = S.rate + "×";
   await loadVersions();

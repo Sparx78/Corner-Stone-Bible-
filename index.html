@@ -16,6 +16,11 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div id="opening" class="opening" aria-hidden="true" hidden>
+  <svg class="opening-star" viewBox="0 0 64 64"><path d="M32 0l4.2 23.4L60 32l-23.8 8.6L32 64l-4.2-23.4L4 32l23.8-8.6z"/></svg>
+  <p class="opening-text">In the beginning God created<br>the heaven and the earth.</p>
+  <p class="opening-ref">Genesis 1:1</p>
+</div>
 <a class="skip" href="#reader">Skip to scripture</a>
 
 <header class="topbar" role="banner">
@@ -76,6 +81,10 @@
   <section id="view-more" class="view" aria-label="More">
     <div class="page">
       <h1 class="page-title">Settings</h1>
+
+      <h2 class="group-title">Background</h2>
+      <div class="theme-row" role="radiogroup" aria-label="Background" data-theme-picker></div>
+      <button class="ghost-btn full" id="moreDisplay">Text size, typeface and spacing…</button>
 
       <h2 class="group-title">Versions</h2>
       <ul id="versionList" class="card-list"></ul>
@@ -160,20 +169,16 @@
 
 <div id="sheet-text" class="sheet" role="dialog" aria-modal="true" aria-labelledby="textTitle" hidden>
   <div class="grabber" aria-hidden="true"></div>
-  <div class="sheet-head"><h2 id="textTitle">Display</h2><button class="text-btn" data-close>Done</button></div>
+  <div class="sheet-head"><h2 id="textTitle">Appearance</h2><button class="text-btn" data-close>Done</button></div>
+  <div class="theme-row" role="radiogroup" aria-label="Background" data-theme-picker></div>
   <div class="size-row">
     <button class="circle-btn" id="fontDown" aria-label="Smaller text">A</button>
     <input type="range" id="fontSize" min="15" max="34" step="1" aria-label="Text size">
     <button class="circle-btn big" id="fontUp" aria-label="Larger text">A</button>
   </div>
-  <div class="theme-row" role="radiogroup" aria-label="Theme">
-    <button role="radio" data-theme="light" class="theme-chip light">Ivory</button>
-    <button role="radio" data-theme="sepia" class="theme-chip sepia">Parchment</button>
-    <button role="radio" data-theme="dark" class="theme-chip dark">Night</button>
-    <button role="radio" data-theme="auto" class="theme-chip auto">Auto</button>
-  </div>
   <div class="seg" role="radiogroup" aria-label="Typeface">
-    <button role="radio" data-font="serif">Serif</button>
+    <button role="radio" data-font="garamond" style="font-family:var(--garamond);font-size:16px">Garamond</button>
+    <button role="radio" data-font="newyork" style="font-family:var(--serif)">New York</button>
     <button role="radio" data-font="sans">Sans</button>
     <button role="radio" data-font="dyslexic">Readable</button>
   </div>

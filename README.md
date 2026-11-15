@@ -10,7 +10,7 @@ add to your Home Screen. Once added, it opens full-screen like any other app and
 | **More versions** | Berean Standard Bible (modern English), American Standard (1901), Young's Literal, Bible in Basic English, Webster. Download once in Settings → they work offline. Show any one **side by side** with the KJV, or **Compare** one verse across all of them. |
 | **Listen** | Voxly recordings (Kokoro voice, made on your computer, see [VOXLY-AUDIO.md](VOXLY-AUDIO.md)) — or the iPhone's own voice whenever there is no recording. The verse being read is highlighted and the page follows along. Speed 0.75×–2×, next/previous verse, carries on to the next chapter, lock-screen controls for Voxly audio. Long-press the speed button for a sleep timer. |
 | **Notes** | Tap any verse: highlight (5 colours), bookmark, write a note, copy, share, listen from here. Journal entries not tied to a verse. Titles and tags, search across your notes, dictation with the keyboard microphone. Unsaved notes survive the app being closed. **Export backup** / **Restore backup** as a file. |
-| **Comfortable** | Ivory, Parchment, Night or Auto theme; text size 15–34 pt; line spacing; serif, sans or extra-readable typeface; paragraph or verse-per-line layout. VoiceOver labels on every control, honours Reduce Motion and Increase Contrast. |
+| **Beautiful** | Six backgrounds — Ivory, Parchment, Dawn, Heavens (a starry night sky), Night (true black) and Auto (Ivory by day, Heavens by night) — in Settings or the Aa button. Garamond typography with gilded drop capitals, the KJV book titles ("The First Book of Moses, called Genesis") and a moment of light when the app opens. Text size 15–34 pt; line spacing; Garamond, New York, sans or extra-readable typeface; paragraph or verse-per-line layout. VoiceOver labels on every control, honours Reduce Motion and Increase Contrast. |
 
 ## Put it on your iPhone
 
@@ -58,3 +58,5 @@ where the Crown's rights in it are administered by Cambridge University Press; u
 but ask before publishing the app to others in the UK.
 
 To add another version: put it in `VERSIONS` in `tools/build_data.py`, rerun it, and the app lists it in Settings.
+
+Fonts: EB Garamond and Cormorant Garamond (SIL Open Font License), stored in `fonts/` so they work offline.
