@@ -42,6 +42,17 @@ iCloud Drive, Mail…). **Restore backup** brings them back on a new phone.
 > Always open it from the Home Screen icon. Safari tabs and the Home Screen app keep separate storage on iOS,
 > so notes made in a Safari tab will not appear in the app.
 
+## Desktop app
+
+**Windows** (Edge or Chrome): open PowerShell and run
+
+    irm https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop.ps1 | iex
+
+or download and double-click `tools/Install-Scripture-Desktop.cmd`. It puts a **Scripture** icon on the Desktop and in the
+Start menu that opens the app in its own window. **Mac**: in Terminal run
+`curl -fsSL https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop-mac.sh | bash`.
+Without a script: open the link in Edge or Chrome and choose *Install this site as an app* / *Install page as app*.
+
 ## Updates and sync
 
 **Updates are automatic.** Changes merged into `main` are published by GitHub Pages; the app fetches the new version in
