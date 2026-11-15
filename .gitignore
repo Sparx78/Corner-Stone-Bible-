@@ -1,5 +1,4 @@
-# Voxly recordings are large: upload them to the web host, not to git
-audio/*
-!audio/README.txt
+# Voxly recordings are kept in git (each chapter is small) so GitHub Pages serves them.
 __pycache__/
 .DS_Store
+*.wav
