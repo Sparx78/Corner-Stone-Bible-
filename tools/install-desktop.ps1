@@ -4,10 +4,12 @@
   Creates a "Scripture" shortcut on your Desktop and in the Start menu. It opens the app in its own window
   (Microsoft Edge or Google Chrome "app mode"), works offline once opened, and updates itself.
 
-  Run (PowerShell):
-    irm https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop.ps1 | iex
-  Remove again (PowerShell):
-    $env:SCRIPTURE_UNINSTALL = "1"; irm https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop.ps1 | iex
+  The simplest way needs no script: in Microsoft Edge, open the app and choose ... > Apps > Install this site as an app.
+
+  To use this script instead: download it, read it, then in PowerShell run
+    powershell -ExecutionPolicy Bypass -File .\install-desktop.ps1
+  Remove the shortcuts again:
+    $env:SCRIPTURE_UNINSTALL = "1"; powershell -ExecutionPolicy Bypass -File .\install-desktop.ps1
 #>
 # Everything runs in its own scope, so nothing is left behind in your PowerShell session.
 & {

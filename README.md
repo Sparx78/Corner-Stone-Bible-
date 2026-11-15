@@ -44,14 +44,13 @@ iCloud Drive, Mail…). **Restore backup** brings them back on a new phone.
 
 ## Desktop app
 
-**Windows** (Edge or Chrome): open PowerShell and run
+**Windows:** open the link in **Microsoft Edge**, then **⋯ menu → Apps → Install this site as an app → Install**, and tick
+*Pin to taskbar*, *Pin to Start* and *Create Desktop shortcut*. (Chrome: **⋮ → Cast, save and share → Install page as app**.)
+It is then a normal installed app, removable in Windows Settings → Apps.
+**Mac:** Safari **File → Add to Dock**, or in Chrome **⋮ → Cast, save and share → Install page as app**.
 
-    irm https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop.ps1 | iex
-
-or download and double-click `tools/Install-Scripture-Desktop.cmd`. It puts a **Scripture** icon on the Desktop and in the
-Start menu that opens the app in its own window. **Mac**: in Terminal run
-`curl -fsSL https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop-mac.sh | bash`.
-Without a script: open the link in Edge or Chrome and choose *Install this site as an app* / *Install page as app*.
+`tools/install-desktop.ps1` and `tools/install-desktop-mac.sh` remain for anyone who prefers a script: download the file,
+read it, and run it from disk. Do not pipe them from the internet into PowerShell (`irm … | iex`); antivirus rightly blocks that.
 
 ## Updates and sync
 

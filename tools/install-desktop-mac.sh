@@ -3,8 +3,9 @@
 # Makes ~/Applications/Scripture.app, which opens the app in its own window (Chrome or Edge "app mode"),
 # or in Safari if neither is installed (then use Safari's File > Add to Dock for a window of its own).
 #
-# Run (Terminal):
-#   curl -fsSL https://sparx78.github.io/Corner-Stone-Bible-/tools/install-desktop-mac.sh | bash
+# The simplest way needs no script: Safari > File > Add to Dock.
+# To use this script instead: download it, read it, then in Terminal run
+#   bash install-desktop-mac.sh
 # Remove again:
 #   rm -rf ~/Applications/Scripture.app
 set -euo pipefail
