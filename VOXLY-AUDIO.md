@@ -16,7 +16,7 @@ John in both voices and Jude (Emma); Psalms is being recorded in both. They are 
 ## Record more on your PC, through Voxly
 
 Use the same PowerShell and Python environment you use for `tyson_export.py`. FFmpeg must be installed
-(`winget install ffmpeg`) so the recordings can be saved as MP3.
+(`winget install ffmpeg`) so the recordings can be saved (AAC by default).
 
 ```
 cd path\to\Corner-Stone-Bible-
@@ -54,5 +54,5 @@ in both voices. For the whole Bible in both voices (about 1.8 GB), host the `aud
  "duration": 412.6, "verses": [0.0, 7.21, 15.03], "exact": true}
 ```
 
-`verses` holds the start time in seconds of each verse in the MP3. Verse 1 starts at 0 and includes the spoken heading
+`verses` holds the start time in seconds of each verse in the recording. Verse 1 starts at 0 and includes the spoken heading
 ("John, chapter 3.").
