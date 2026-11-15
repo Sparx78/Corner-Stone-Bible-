@@ -660,8 +660,28 @@ async function renderSettings() {
   $("#autoNext").checked = S.autoNext; $("#followAudio").checked = S.followAudio;
   $("#showNums").checked = S.showNums; $("#paraMode").checked = S.paraMode;
   $("#redLetters").checked = S.redLetters; $("#italics").checked = S.italics; $("#showXrefs").checked = S.showXrefs;
-  fillVoices(); checkVoxly();
+  fillVoices(); checkVoxly(); offlineStatus();
 }
+async function offlineStatus() {
+  const have = (await Promise.all(VERSIONS.map((v) => isDownloaded(v.id)))).filter(Boolean).length;
+  let study = false; try { study = !!(await caches.match("data/study/xrefs.json")) && !!(await caches.match("data/study/words.json")); } catch {}
+  const all = have === VERSIONS.length && study;
+  $("#offlineStatus").textContent = all ? "Everything is saved on this phone ✓ — works in Airplane Mode." : `On this phone: ${have} of ${VERSIONS.length} versions${study ? " and the Study tools" : ""}.`;
+  $("#offlineStatus").className = "hint" + (all ? " ok" : "");
+  $("#saveAll").hidden = all;
+}
+$("#saveAll").onclick = async () => {
+  const btn = $("#saveAll"); btn.disabled = true;
+  try {
+    for (const [i, v] of VERSIONS.entries()) { btn.textContent = `Saving ${v.name}… (${i + 1} of ${VERSIONS.length + 1})`; await getBible(v.id); }
+    btn.textContent = `Saving the Study tools… (${VERSIONS.length + 1} of ${VERSIONS.length + 1})`;
+    const c = await caches.open("scripture-texts");
+    for (const f of ["words.json", "lexicon.json", "xrefs.json"]) { const r = await fetch("data/study/" + f); if (!r.ok) throw 0; await c.put("data/study/" + f, r); }
+    toast("Everything is saved for offline use");
+  } catch { toast("Saving stopped — check the connection and try again"); }
+  btn.disabled = false; btn.textContent = "Save everything to this phone";
+  renderSettings();
+};
 $("#versionList").onclick = async (e) => {
   const g = e.target.closest("[data-get]"), r = e.target.closest("[data-remove]");
   if (g) { g.textContent = "Downloading…"; g.disabled = true; try { await getBible(g.dataset.get); toast(`${g.dataset.get} is ready offline`); } catch { toast("Download failed — check your connection"); } renderSettings(); }
