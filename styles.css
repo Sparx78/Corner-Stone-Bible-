@@ -498,3 +498,20 @@ button.book-title::after { content: " ⓘ"; font-size: .8em; letter-spacing: 0; 
 .book-mini button { min-height: 36px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; padding: 2px 4px; }
 .book-mini button.nt-start { grid-column-start: 1; }
 .book-chapters { margin-bottom: 8px; }
+
+/* Paths */
+.path-list li { padding-block: 14px; }
+.path-quote { font-family: var(--display); font-style: italic; font-size: 21px; line-height: 1.25; margin: 0 0 6px; color: var(--ink); }
+.path-list .ref span:first-child { font-size: 13px; }
+.path-list small { display: block; margin-top: 2px; }
+.path-bar { display: block; height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 8px; }
+.path-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold-2), var(--gold)); }
+.path-progress { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; }
+.path-progress .path-bar { flex: 1; margin: 0; }
+.path-progress small { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.path-steps { padding-left: 0; }
+.path-step.done { opacity: .72; }
+.path-step.done .vt { color: var(--ink-2); }
+.mini.on { background: var(--gold); color: #fff; }
+.step-more { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.step-more .link { font-size: 12.5px; font-weight: 600; min-height: 30px; }

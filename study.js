@@ -80,6 +80,7 @@ function pageList() {
   const top = stack[stack.length - 1];
   if (top.type === "word") return { refs: (top.list || []).slice(0, 200).map(([b, c, v]) => ({ b, c, v })), title: lexWord(top.num)[1] || "Word study" };
   if (top.type === "thread") { const t = A.threads.find((x) => x.id === top.id); return t && { refs: t.items.map((i) => i.ref), title: t.title }; }
+  if (top.type === "path") { const refs = []; top.steps.forEach((t) => { const r = refFrom(t); for (let v = r.v; v <= r.v2; v++) refs.push({ b: r.b, c: r.c, v }); }); return { refs, title: (PATHS.find((x) => x.id === top.id) || {}).about }; }
   if (top.type === "person") return { refs: (top.list || []).slice(0, 200).map(([b, c, v]) => ({ b, c, v })), title: top.name };
   if (top.type === "passage") return { refs: (top.back || []).slice(0, 200), title: (top.title || passageLabel(top)) + ": scripture looks back" };
   if (top.type === "verse" && S.showXrefs !== false && ST.xrefs) {
@@ -124,6 +125,7 @@ async function draw() {
   else if (top.type === "person") body = personHTML(top);
   else if (top.type === "passage") body = passageHTML(top);
   else if (top.type === "book") body = bookHTML(top);
+  else if (top.type === "path") body = pathHTML(top);
   studyPage.innerHTML = head + body;
   const b = $("#studyBack"); if (b) b.onclick = back;
 }
@@ -133,12 +135,13 @@ function crumbLabel(e) {
   if (e.type === "search") return `“${e.q}”`;
   if (e.type === "person") return e.name;
   if (e.type === "book") return bookName(e.b);
+  if (e.type === "path") return (PATHS.find((x) => x.id === e.id) || {}).about || "Path";
   if (e.type === "passage") return e.title || passageLabel(e);
   if (e.type === "thread") return (A.threads.find((t) => t.id === e.id) || {}).title || "Thread";
   return "Study";
 }
 studyPage.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-book],[data-person],[data-passage],[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
+  const t = e.target.closest("[data-path],[data-stepread],[data-steplisten],[data-pathcopy],[data-pathnext],[data-book],[data-person],[data-passage],[data-listen],[data-listenfrom],[data-listenall],[data-crumb],[data-word],[data-verse],[data-read],[data-thread],[data-q],[data-more],[data-filter-book],[data-filter-r],[data-ctx],[data-tact]");
   if (!t) return;
   const d = t.dataset;
   if (d.crumb) { stack = stack.slice(0, +d.crumb + 1); draw(); }
@@ -148,6 +151,11 @@ studyPage.addEventListener("click", (e) => {
   else if (d.thread) go({ type: "thread", id: d.thread });
   else if (d.person) go({ type: "person", name: d.person, page: 1 });
   else if (d.book != null) go({ type: "book", b: +d.book });
+  else if (d.path) go({ type: "path", id: d.path });
+  else if (d.stepread != null) markStep(d.stepread);
+  else if (d.steplisten != null) { const r = refFrom(stack[stack.length - 1].steps[+d.steplisten]); const refs = []; for (let v = r.v; v <= r.v2; v++) refs.push({ b: r.b, c: r.c, v }); player.playList(refs, stack[stack.length - 1].steps[+d.steplisten]); }
+  else if ("pathcopy" in d) copyPathToThread();
+  else if ("pathnext" in d) { const el = studyPage.querySelector(".path-step:not(.done)"); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); }
   else if (d.passage) { const [b, c1, c2] = d.passage.split(".").map(Number); go({ type: "passage", b, c1, c2, title: d.title || "", page: 1 }); }
   else if (d.q) go({ type: "search", q: d.q });
   else if ("more" in d) { stack[stack.length - 1].page++; draw(); }
@@ -176,6 +184,10 @@ function homeHTML() {
   <h2 class="group-title">Begin at the foundation</h2>
   <p class="hint">Choose a word: see the Hebrew or Greek word behind it, where scripture first uses it, and every place it is used after.</p>
   <div class="chips">${FOUNDATION_WORDS.map((w) => `<button class="chip" data-q="${w}">${w}</button>`).join("")}</div>
+  <h2 class="group-title">Paths into the heart of God</h2>
+  <p class="hint">Readings through the whole Bible, in the order scripture gives them. Every word on a path is scripture.</p>
+  <ul class="card-list path-list">${PATHS.map((x) => { const done = (A.pathRead && A.pathRead[x.id] || []).length;
+    return `<li class="clickable" data-path="${x.id}" role="button" tabindex="0"><p class="path-quote">“${esc(x.title)}”</p><div class="ref"><span>${esc(x.about)}</span><span class="go">›</span></div><small class="muted">${x.steps.length} readings${done ? ` · ${done} read` : ""} · ${esc(x.from)}</small>${done ? `<span class="path-bar"><i style="width:${(done / x.steps.length) * 100}%"></i></span>` : ""}</li>`; }).join("")}</ul>
   <h2 class="group-title">The books</h2>
   <p class="hint">Each book introduced in scripture's own words: who wrote it, when and where, and why, as the Bible itself records.</p>
   <div class="book-mini">${BOOKS.map((x, i) => `<button data-book="${i}" class="${i === NT_START ? "nt-start" : ""}">${esc(shortName(i))}</button>`).join("")}</div>
@@ -510,6 +522,39 @@ function bookHTML(top) {
     <p class="hint">Open a chapter to see what the rest of scripture says of it.</p>
     <div class="chapter-grid book-chapters">${book.map((_, c) => `<button data-passage="${b}.${c}.${c}" data-title="${esc(name)} ${c + 1}" aria-label="${esc(name)} chapter ${c + 1}">${c + 1}</button>`).join("")}</div>
     <p class="hint sources">Every line above is scripture or is counted from it. Nothing is added about dates, places or writers that the Bible does not itself say.</p>`;
+}
+
+// ------------------------------------------------------------------ paths
+function pathHTML(top) {
+  const path = PATHS.find((x) => x.id === top.id); if (!path) return `<p class="empty">This path was not found.</p>`;
+  top.steps = path.steps;
+  A.pathRead = A.pathRead || {};
+  const read = new Set(A.pathRead[path.id] || []);
+  const from = refFrom(path.from);
+  return `<figure class="guide-verse"><blockquote>“${esc(path.title)}”</blockquote><figcaption>${esc(path.from)}</figcaption></figure>
+    <h1 class="page-title">${esc(path.about)}</h1>
+    <p class="hint">${path.steps.length} readings, in the order they come in the Bible, from ${esc(path.steps[0])} to ${esc(path.steps[path.steps.length - 1])}. Read slowly; open any reading to study its words and the scriptures linked to it.</p>
+    <div class="path-progress"><span class="path-bar"><i style="width:${(read.size / path.steps.length) * 100}%"></i></span><small>${read.size} of ${path.steps.length} read</small></div>
+    <div class="row-btns tight"><button class="ghost-btn listen" data-listenall>▶ Listen to the whole path</button>${read.size && read.size < path.steps.length ? `<button class="ghost-btn" data-pathnext>Continue where I left off</button>` : ""}<button class="ghost-btn" data-pathcopy>Copy to my threads</button></div>
+    <ol class="card-list path-steps">${path.steps.map((t, i) => { const r = refFrom(t), k = refKey(r.b, r.c, r.v);
+      const text = bibles.KJV.books[r.b][r.c].slice(r.v, r.v2 + 1).map((x, j) => `${r.v2 > r.v ? `<sup>${r.v + j + 1}</sup>` : ""}${esc(x)}`).join(" ");
+      return `<li class="path-step ${read.has(i) ? "done" : ""}" id="step-${i}">
+        <div class="ref"><button class="link" data-verse="${k}">${i + 1}. ${esc(t)}</button><span class="row-acts"><button class="mini play" data-steplisten="${i}" aria-label="Listen to ${esc(t)}">▶</button><button class="mini" data-ctx="1">Context</button><button class="mini ${read.has(i) ? "on" : ""}" data-stepread="${i}" aria-pressed="${read.has(i)}">${read.has(i) ? "✓ Read" : "Mark read"}</button></span></div>
+        <p class="vt">${text}</p><div class="ctx" hidden>${contextHTML(r, 4, 4)}</div>
+        <div class="step-more"><button class="link" data-verse="${k}">Study the words of ${esc(t.split("-")[0])} ›</button><button class="link" data-passage="${r.b}.${r.c}.${r.c}" data-title="${esc(bookName(r.b))} ${r.c + 1}">What scripture says of ${esc(bookName(r.b))} ${r.c + 1} ›</button></div></li>`; }).join("")}</ol>
+    <p class="hint sources">A path only sets a reading order. Make your own with threads: tap any verse while reading and choose Add to thread.</p>`;
+}
+function markStep(i) {
+  const top = stack[stack.length - 1]; i = +i;
+  A.pathRead = A.pathRead || {}; const list = new Set(A.pathRead[top.id] || []);
+  list.has(i) ? list.delete(i) : list.add(i);
+  A.pathRead[top.id] = [...list].sort((x, y) => x - y); saveA();
+  const y = window.scrollY; draw().then(() => window.scrollTo(0, y));
+}
+function copyPathToThread() {
+  const top = stack[stack.length - 1], path = PATHS.find((x) => x.id === top.id);
+  const t = { id: "t" + Date.now().toString(36), title: path.about, items: path.steps.map((s) => { const r = refFrom(s); return { ref: { b: r.b, c: r.c, v: r.v }, note: "" }; }), created: Date.now(), updated: Date.now() };
+  A.threads.unshift(t); saveA(); toast(`Copied to your threads as “${t.title}”: add, remove and reorder it there`);
 }
 
 // ------------------------------------------------------------------ threads: verses you link on one subject

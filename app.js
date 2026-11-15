@@ -438,6 +438,7 @@ $("#importFile").onchange = async (e) => {
     const ids = new Set(A.notes.map((n) => n.id));
     Object.assign(A.hl, d.hl || {}); Object.assign(A.bm, d.bm || {});
     const tids = new Set(A.threads.map((t) => t.id)); (d.threads || []).forEach((t) => { if (!tids.has(t.id)) A.threads.push(t); });
+    A.pathRead = A.pathRead || {}; Object.entries(d.pathRead || {}).forEach(([k, v]) => { A.pathRead[k] = [...new Set([...(A.pathRead[k] || []), ...v])].sort((x, y) => x - y); });
     (d.notes || []).forEach((n) => { if (!ids.has(n.id)) A.notes.push(n); });
     saveA(); renderNotes(); toast("Backup restored");
   } catch { toast("That file is not a Scripture backup"); }

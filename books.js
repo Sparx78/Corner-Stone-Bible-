@@ -89,3 +89,19 @@ function bookPart(b) {
   if (b <= 64) return "The general epistles";
   return "The revelation";
 }
+
+
+// Paths: readings through scripture in the order the Bible gives them. A path chooses where to read;
+// every word on it is scripture. Named with the Bible's own words.
+const PATHS = [
+  { id: "heart", title: "The LORD, The LORD God, merciful and gracious", from: "Exodus 34:6", about: "God's heart: what He says of Himself",
+    steps: ["Exodus 3:14", "Exodus 34:6-7", "Deuteronomy 7:7-9", "Psalms 103:8-14", "Psalms 145:8-9", "Isaiah 49:15-16", "Jeremiah 9:23-24", "Jeremiah 31:3", "Lamentations 3:22-23", "Ezekiel 33:11", "Hosea 11:1-4", "Hosea 11:8-9", "Micah 7:18-19", "Zephaniah 3:17", "Matthew 9:36", "Luke 15:20", "John 3:16-17", "Romans 5:8", "1 John 4:8-10", "1 John 4:16"] },
+  { id: "plan", title: "The mystery of his will", from: "Ephesians 1:9", about: "His plan for all humanity, from the beginning to the end",
+    steps: ["Genesis 1:26-28", "Genesis 1:31", "Genesis 3:15", "Genesis 12:1-3", "Genesis 22:18", "Exodus 19:5-6", "Isaiah 9:6-7", "Isaiah 49:6", "Isaiah 53:4-6", "Jeremiah 31:31-34", "Ezekiel 36:26-27", "Daniel 2:44", "Joel 2:28", "Luke 24:44-47", "John 1:12-14", "Acts 17:26-27", "Galatians 3:8", "Galatians 4:4-5", "Ephesians 1:9-10", "Ephesians 3:9-11", "1 Timothy 2:3-6", "2 Peter 3:9", "Revelation 21:1-5", "Revelation 22:17"] },
+  { id: "desire", title: "What doth the LORD require of thee?", from: "Micah 6:8", about: "His desire for you",
+    steps: ["Deuteronomy 6:4-5", "Deuteronomy 10:12-13", "Deuteronomy 30:19-20", "1 Samuel 15:22", "Psalms 51:16-17", "Isaiah 1:18", "Jeremiah 29:11-13", "Hosea 6:6", "Micah 6:8", "Matthew 11:28-30", "Matthew 22:37-40", "John 10:10", "John 15:9-15", "John 17:3", "Romans 8:28-29", "Romans 12:1-2", "2 Corinthians 5:17-21", "Ephesians 2:4-10", "Philippians 1:6", "1 Thessalonians 5:16-18"] },
+  { id: "mind", title: "My thoughts are not your thoughts", from: "Isaiah 55:8", about: "His mind, and how He makes it known",
+    steps: ["Deuteronomy 29:29", "Psalms 139:1-6", "Psalms 139:17-18", "Proverbs 3:5-6", "Proverbs 25:2", "Isaiah 46:9-10", "Isaiah 55:8-11", "Jeremiah 33:3", "Amos 3:7", "Matthew 11:25-27", "John 14:9", "John 16:13-15", "Romans 11:33-36", "1 Corinthians 2:9-16", "Ephesians 1:17-18", "Philippians 2:5-8", "Colossians 1:15-17", "Hebrews 1:1-3"] },
+  { id: "why", title: "That ye may know that I am the LORD", from: "Exodus 6:7", about: "Why He does what He does, in His own words",
+    steps: ["Exodus 6:6-7", "Exodus 9:16", "Deuteronomy 8:2-3", "Psalms 106:8", "Isaiah 43:7", "Isaiah 43:25", "Isaiah 48:9-11", "Ezekiel 36:22-23", "John 9:2-3", "John 11:4", "John 20:31", "Romans 8:28", "Romans 9:17", "Romans 15:4", "1 Corinthians 10:11", "Ephesians 2:7", "Hebrews 12:10-11", "James 1:2-4", "1 Peter 1:6-7"] },
+];
