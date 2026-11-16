@@ -1,17 +1,18 @@
 #!/bin/bash
-# Scripture (Corner Stone Bible): install as a desktop app on a Mac.
-# Makes ~/Applications/Scripture.app, which opens the app in its own window (Chrome or Edge "app mode"),
+# Corner Stone (King James Bible): install as a desktop app on a Mac.
+# Makes ~/Applications/"Corner Stone.app", which opens the app in its own window (Chrome or Edge "app mode"),
 # or in Safari if neither is installed (then use Safari's File > Add to Dock for a window of its own).
 #
 # The simplest way needs no script: Safari > File > Add to Dock.
 # To use this script instead: download it, read it, then in Terminal run
 #   bash install-desktop-mac.sh
 # Remove again:
-#   rm -rf ~/Applications/Scripture.app
+#   rm -rf ~/Applications/"Corner Stone.app"
 set -euo pipefail
 
 APP_URL="https://sparx78.github.io/Corner-Stone-Bible-/"
-APP="$HOME/Applications/Scripture.app"
+APP="$HOME/Applications/Corner Stone.app"
+rm -rf "$HOME/Applications/Scripture.app"   # from before the app was renamed
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 # The launcher: Chrome or Edge in app mode, otherwise Safari
@@ -31,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>Scripture</string>
-  <key>CFBundleDisplayName</key><string>Scripture</string>
+  <key>CFBundleName</key><string>Corner Stone</string>
+  <key>CFBundleDisplayName</key><string>Corner Stone</string>
   <key>CFBundleIdentifier</key><string>io.github.sparx78.scripture</string>
   <key>CFBundleExecutable</key><string>Scripture</string>
   <key>CFBundleIconFile</key><string>Scripture</string>
@@ -53,6 +54,6 @@ iconutil -c icns "$TMP/Scripture.iconset" -o "$APP/Contents/Resources/Scripture.
 rm -rf "$TMP"
 touch "$APP"
 
-echo "Scripture is installed in ~/Applications. Opening it now..."
+echo "Corner Stone is installed in ~/Applications. Opening it now..."
 echo "Tip: while it is open, right-click its Dock icon > Options > Keep in Dock."
 open "$APP"

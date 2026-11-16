@@ -1,6 +1,6 @@
 {
-  "name": "Scripture — King James Bible",
-  "short_name": "Scripture",
+  "name": "Corner Stone — King James Bible",
+  "short_name": "Corner Stone",
   "description": "Read and listen to the King James Bible, with notes and highlights.",
   "start_url": "./",
   "scope": "./",

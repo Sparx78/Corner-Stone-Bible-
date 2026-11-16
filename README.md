@@ -2,7 +2,7 @@
 
 *"The stone which the builders refused is become the head stone of the corner."* — Psalm 118:22
 
-The app is called **Scripture** on the Home Screen.
+The app is called **Corner Stone** on the Home Screen.
 
 Read, listen and take notes. The King James Version is the main text, and five more public-domain versions
 can be added from Settings. No App Store, no Apple developer account, no sign-in: it is a web app that you
@@ -34,7 +34,7 @@ The Voxly recordings in `audio/` are part of this repository, so the GitHub Page
    for the whole-Bible audio; see VOXLY-AUDIO.md.)
 2. On the iPhone, open that address in **Safari**.
 3. Tap **Share** (the square with an arrow) → **Add to Home Screen** → **Add**.
-4. Open **Scripture** from the Home Screen. It downloads the KJV the first time; from then on it works in flight mode.
+4. Open **Corner Stone** from the Home Screen. It downloads the KJV the first time; from then on it works in flight mode.
 
 Keep your notes safe: they live only on the phone. Use **Notes → Export backup** now and then (saves to Files,
 iCloud Drive, Mail…). **Restore backup** brings them back on a new phone.

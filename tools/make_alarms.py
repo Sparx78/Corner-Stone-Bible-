@@ -64,7 +64,7 @@ def main():
                 f.setnchannels(fmt[0]); f.setsampwidth(fmt[1]); f.setframerate(fmt[2]); f.writeframes(b"".join(frames))
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(w), "-ac", "1", "-c:a", "aac", "-b:a", "64k",
                             "-af", "loudnorm=I=-14:TP=-1.5", "-ar", "44100",
-                            "-metadata", "title=%s" % reference(book, ch, v1, v2).rstrip("."), "-metadata", "artist=Scripture",
+                            "-metadata", "title=%s" % reference(book, ch, v1, v2).rstrip("."), "-metadata", "artist=Corner Stone",
                             str(out / (name + ".m4a"))], check=True)
         label = "%s %d:%d" % ("Psalm" if book == "Psalms" else book, ch, v1) + ("" if v1 == v2 else "\u2013%d" % v2)
         listing.append({"file": name + ".m4a", "ref": label, "text": text,

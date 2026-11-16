@@ -1,7 +1,7 @@
 <#
-  Scripture (Corner Stone Bible): install as a desktop app on Windows.
+  Corner Stone (King James Bible): install as a desktop app on Windows.
 
-  Creates a "Scripture" shortcut on your Desktop and in the Start menu. It opens the app in its own window
+  Creates a "Corner Stone" shortcut on your Desktop and in the Start menu. It opens the app in its own window
   (Microsoft Edge or Google Chrome "app mode"), works offline once opened, and updates itself.
 
   The simplest way needs no script: in Microsoft Edge, open the app and choose ... > Apps > Install this site as an app.
@@ -17,17 +17,20 @@
 
   $ErrorActionPreference = "Stop"
   $AppUrl   = "https://sparx78.github.io/Corner-Stone-Bible-/"
-  $AppName  = "Scripture"
+  $AppName  = "Corner Stone"
   $Home2    = Join-Path $env:LOCALAPPDATA "ScriptureBible"
   $Icon     = Join-Path $Home2 "scripture.ico"
   $Desktop  = [Environment]::GetFolderPath("Desktop")
   $StartDir = [Environment]::GetFolderPath("Programs")
   $Links    = @((Join-Path $Desktop "$AppName.lnk"), (Join-Path $StartDir "$AppName.lnk"))
+  # Shortcuts from before the app was renamed (it was called "Scripture")
+  $OldLinks = @((Join-Path $Desktop "Scripture.lnk"), (Join-Path $StartDir "Scripture.lnk"))
+  foreach ($l in $OldLinks) { if (Test-Path $l) { Remove-Item $l -Force } }
 
   if ($Uninstall) {
     foreach ($l in $Links) { if (Test-Path $l) { Remove-Item $l -Force; Write-Host "Removed $l" } }
     if (Test-Path $Home2) { Remove-Item $Home2 -Recurse -Force }
-    Write-Host "Scripture desktop shortcuts removed. Your notes stay in the browser (and in sync, if it is on)." -ForegroundColor Green
+    Write-Host "Corner Stone desktop shortcuts removed. Your notes stay in the browser (and in sync, if it is on)." -ForegroundColor Green
     $env:SCRIPTURE_UNINSTALL = $null
     return
   }
@@ -56,14 +59,14 @@
     $s.TargetPath       = $Browser
     $s.Arguments        = "--app=$AppUrl --window-size=1100,860"
     $s.IconLocation     = "$Icon,0"
-    $s.Description      = "Scripture: read, listen and study the King James Bible"
+    $s.Description      = "Corner Stone: read, listen and study the King James Bible"
     $s.WorkingDirectory = Split-Path $Browser
     $s.Save()
     Write-Host "Created $l"
   }
 
   Write-Host ""
-  Write-Host "Scripture is installed. Opening it now..." -ForegroundColor Green
+  Write-Host "Corner Stone is installed. Opening it now..." -ForegroundColor Green
   Write-Host "Tip: right-click its icon in the taskbar and choose 'Pin to taskbar'."
   Write-Host "In the app: Settings > Offline > Save everything, so it also works without internet."
   Start-Process -FilePath $Browser -ArgumentList "--app=$AppUrl", "--window-size=1100,860"

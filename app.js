@@ -143,7 +143,7 @@ async function render(scrollToVerse) {
   reader.classList.toggle("no-nums", !S.showNums);
   $("#refText").textContent = `${bookName(b)} ${pos.c + 1}`;
   $("#verText").textContent = S.version + (par ? "+" + par.id : "");
-  document.title = `${bookName(b)} ${pos.c + 1} · Scripture`;
+  document.title = `${bookName(b)} ${pos.c + 1} · Corner Stone`;
   const prev = neighbour(-1), next = neighbour(1);
   $("#prevCh").disabled = !prev; $("#nextCh").disabled = !next;
   $("#prevLabel").textContent = prev ? `${shortName(prev.b)} ${prev.c + 1}` : "";
@@ -436,7 +436,7 @@ $("#exportNotes").onclick = async () => {
   const data = JSON.stringify({ app: "Scripture", exported: new Date().toISOString(), annotations: A }, null, 1);
   const name = `scripture-notes-${new Date().toISOString().slice(0, 10)}.json`;
   const file = new File([data], name, { type: "application/json" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "Scripture notes backup" }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "Corner Stone notes backup" }); return; } catch (e) { if (e.name === "AbortError") return; } }
   const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 };
 $("#importNotes").onclick = () => $("#importFile").click();
@@ -637,7 +637,7 @@ const player = {
   sleepCheck() { if (this.sleepAt && Date.now() >= this.sleepAt) { this.sleepAt = 0; this.pause(); this.status("Sleep timer ended"); return true; } return false; },
   mediaSession() {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.metadata = new MediaMetadata({ title: `${bookName(this.b)} ${this.c + 1}`, artist: verInfo(S.version).name, album: "Scripture",
+    navigator.mediaSession.metadata = new MediaMetadata({ title: `${bookName(this.b)} ${this.c + 1}`, artist: verInfo(S.version).name, album: "Corner Stone",
       artwork: [{ src: "icons/icon-512.png", sizes: "512x512", type: "image/png" }] });
     const ms = navigator.mediaSession;
     ms.setActionHandler("play", () => this.play()); ms.setActionHandler("pause", () => this.pause());
@@ -906,7 +906,7 @@ function opening() {
   await render();
   const d = store.get("draft", null);
   if (d && (d.body || d.title)) { openNote(d.editing.id, d.editing.ref); $("#noteHeading").value = d.title; $("#noteBody").value = d.body; $("#noteTags").value = d.tags; toast("Your unsaved note was restored"); }
-  $("#buildInfo").textContent = "Scripture 1.0 · texts from the scrollmapper/bible_databases collection.";
+  $("#buildInfo").textContent = "Corner Stone 1.0 · texts from the scrollmapper/bible_databases collection.";
   // When a new version of the app has been downloaded, offer it straight away instead of on the next launch.
   const hadVersion = "serviceWorker" in navigator && !!navigator.serviceWorker.controller; // false on the very first visit
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then((reg) => {
