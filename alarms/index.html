@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Morning Verses</title>
+<meta name="theme-color" content="#fbf8f1">
+<style>
+  @font-face { font-family: "EB Garamond"; font-weight: 400 800; font-display: swap; src: url(../fonts/EBGaramond-400.woff2) format("woff2"); }
+  @font-face { font-family: "EB Garamond"; font-style: italic; font-weight: 400 800; font-display: swap; src: url(../fonts/EBGaramond-400i.woff2) format("woff2"); }
+  @font-face { font-family: "Cormorant Garamond"; font-weight: 300 700; font-display: swap; src: url(../fonts/CormorantGaramond-500.woff2) format("woff2"); }
+  :root { --bg: #fbf8f1; --surface: #fff; --ink: #1b2330; --ink-2: #5d6675; --line: #e6dfcf; --gold: #a8803a; --gold-soft: #f1e6cc; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0b1220; --surface: #121b2d; --ink: #ece6d8; --ink-2: #a3a9b6; --line: #24304a; --gold: #d9b56a; --gold-soft: #2a2a2a; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 19px/1.6 "EB Garamond", Georgia, serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font: 500 2.2rem/1.1 "Cormorant Garamond", serif; text-align: center; margin: 8px 0 4px; font-variant-numeric: lining-nums; }
+  .sub { text-align: center; color: var(--ink-2); font-style: italic; margin: 0 0 28px; }
+  .v { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 0 0 14px; }
+  .ref { font: 600 1.15rem "Cormorant Garamond", serif; color: var(--gold); font-variant-numeric: lining-nums; }
+  .t { margin: 4px 0 12px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  audio { width: 100%; max-width: 360px; height: 40px; }
+  a.dl { display: inline-block; padding: 8px 16px; border-radius: 999px; background: var(--gold); color: var(--bg); text-decoration: none; font-weight: 600; }
+  h2 { font: 500 1.6rem "Cormorant Garamond", serif; margin: 36px 0 8px; }
+  ol { padding-left: 1.3em; } li { margin: 0 0 8px; }
+  .note { color: var(--ink-2); font-size: .92rem; }
+  a.back { color: var(--gold); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Morning Verses</h1>
+  <p class="sub">Wake to the word, read by Voxly</p>
+  <div id="list"></div>
+
+  <h2>Make one your iPhone alarm</h2>
+  <ol>
+    <li>Tap <b>Save</b> under the verse you want, then choose <b>Download</b>. The file goes to <b>Files › Downloads</b>.</li>
+    <li>Open <b>GarageBand</b> (Apple’s free app; get it from the App Store if it is not on your phone).
+      Tap <b>+</b>, choose <b>Audio Recorder</b>, then tap the <b>tracks</b> button (the bricks icon) at the top.</li>
+    <li>Tap the <b>loop</b> button (top right), then <b>Files › Browse items from the Files app</b>, and pick the verse.
+      Hold it and drag it into the track, to the very start.</li>
+    <li>So the whole verse is kept: tap the small <b>+</b> at the right end of the ruler above the track, tap <b>Section A</b>,
+      and turn on <b>Automatic</b>.</li>
+    <li>Tap the <b>▾</b> button (top left) and choose <b>My Songs</b>. Hold the song, then tap <b>Share › Ringtone</b>.
+      Name it, for example “New every morning”, and tap <b>Export</b>.</li>
+    <li>Open <b>Clock › Alarms</b>, tap your alarm, then <b>Sound</b>. Your verse is at the top of the list under <b>Ringtones</b>.</li>
+  </ol>
+  <p class="note">The alarm repeats the verse until you stop it, with a short pause between each reading.
+    You only need to do this once for each verse.</p>
+  <p class="note"><a class="back" href="../">Back to Scripture</a></p>
+</main>
+<script>
+fetch("alarms.json").then((r) => r.json()).then((list) => {
+  const box = document.getElementById("list");
+  for (const a of list) {
+    const d = document.createElement("div"); d.className = "v";
+    d.innerHTML = `<div class="ref"></div><p class="t"></p><div class="row"><audio controls preload="none"></audio><a class="dl">Save</a></div>`;
+    d.querySelector(".ref").textContent = a.ref;
+    d.querySelector(".t").textContent = a.text;
+    d.querySelector("audio").src = a.file;
+    const dl = d.querySelector(".dl"); dl.href = a.file; dl.download = a.file;
+    box.appendChild(d);
+  }
+});
+</script>
+</body>
+</html>
