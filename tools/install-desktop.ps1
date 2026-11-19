@@ -53,11 +53,18 @@
   Invoke-WebRequest -UseBasicParsing -Uri ($AppUrl + "icons/scripture.ico") -OutFile $Icon
 
   # 3. Shortcuts on the Desktop and in the Start menu
+  $Launcher = if ($PSScriptRoot) { Join-Path $PSScriptRoot "open-corner-stone.ps1" } else { "" }
   $shell = New-Object -ComObject WScript.Shell
   foreach ($l in $Links) {
     $s = $shell.CreateShortcut($l)
-    $s.TargetPath       = $Browser
-    $s.Arguments        = "--app=$AppUrl --window-size=1100,860"
+    if ($Launcher -and (Test-Path $Launcher)) {   # installed from the Corner-Stone-Bible- folder: open the app and sync recordings too
+      $s.TargetPath     = "powershell.exe"
+      $s.Arguments      = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Launcher`""
+      $s.WindowStyle    = 7
+    } else {
+      $s.TargetPath     = $Browser
+      $s.Arguments      = "--app=$AppUrl --window-size=1100,860"
+    }
     $s.IconLocation     = "$Icon,0"
     $s.Description      = "Corner Stone: read, listen and study the King James Bible"
     $s.WorkingDirectory = Split-Path $Browser
@@ -67,7 +74,8 @@
 
   Write-Host ""
   Write-Host "Corner Stone is installed. Opening it now..." -ForegroundColor Green
-  Write-Host "Tip: right-click its icon in the taskbar and choose 'Pin to taskbar'."
+  if ($Launcher -and (Test-Path $Launcher)) { Write-Host "Each time you open it from this shortcut, your Voxly recordings are synced too, quietly in the background." }
+  Write-Host "Tip: open it from the Desktop or Start menu shortcut (right-click it in Start > Pin to taskbar)."
   Write-Host "In the app: Settings > Offline > Save everything, so it also works without internet."
   Start-Process -FilePath $Browser -ArgumentList "--app=$AppUrl", "--window-size=1100,860"
 }
