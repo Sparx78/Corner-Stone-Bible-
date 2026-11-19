@@ -11,7 +11,7 @@ Choose between them in the app: Settings → Listening → *Voxly voice*.
 ## What is already recorded
 
 Made with the same Kokoro model your Voxly uses (`kokoro-v1.0.onnx`, speed 0.9, British English):
-John in both voices and Jude (Emma); Psalms is being recorded in both. They are in `audio/KJV/bf_emma/` and `audio/KJV/bm_george/`.
+Emma: Genesis, Exodus 1-9, Psalms, Proverbs, the four Gospels, Acts, Romans, Jude and Revelation 1-5; George: John and part of Psalms. They are in `audio/KJV/bf_emma/` and `audio/KJV/bm_george/`.
 
 ## Record more on your PC, through Voxly
 
@@ -28,6 +28,17 @@ python tools\voxly_bible_audio.py --voxly C:\G_Labs\Voxly --all --voice bf_emma
 This loads Voxly with your `settings.yaml` exactly as `tyson_export.py` does and asks its Kokoro engine for each verse.
 `--settings path\settings.yaml` uses another settings file. Chapters already recorded are skipped, so you can
 stop with Ctrl+C and run the same command later to carry on.
+
+## Send your recordings to the app (sync)
+
+One line updates your PC's copy, sends its new recordings and refreshes the app's list of recorded chapters.
+It is safe while recording is still running:
+
+```
+powershell -ExecutionPolicy Bypass -File C:\G_Labs\Corner-Stone-Bible-\tools\sync-pc.ps1
+```
+
+Add `-Auto` once to have Windows do it by itself every hour, and `-StopAuto` to stop that. Each sync is noted in `sync-log.txt`.
 
 Without Voxly (any computer with Python): `pip install kokoro-onnx soundfile`, download `kokoro-v1.0.onnx` and
 `voices-v1.0.bin` from the kokoro-onnx model release into a folder, then use `--kokoro-dir that-folder` in place of `--voxly`.
