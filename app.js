@@ -797,26 +797,73 @@ async function renderAudioBooks() {
     h += `<li><span class="ab-name"><b>${esc(bookName(b))}</b><small>${VOXLY_VOICES[S.voxlyVoice]} · ${have === total ? (total === 1 ? "1 chapter" : "all " + total + " chapters") : have + " of " + total + " chapters"}${saved && saved < have ? " · " + saved + " saved" : ""}</small></span>${state}</li>`;
   }
   list.innerHTML = h;
+  let need = 0;
+  for (const [bk, info] of Object.entries(books)) { const sv = await savedChapters(+bk - 1, info.chapters, S.voxlyVoice); if (sv < info.chapters.length) need += info.bytes * (1 - sv / info.chapters.length); }
+  const all = $("#saveAllAudio");
+  if (!updatingAudio) { all.hidden = need === 0; all.textContent = `Save all recorded audio · ${mb(need)}`; }
   if (navigator.storage && navigator.storage.estimate) { try { const e = await navigator.storage.estimate(); $("#audioStorage").textContent = `Using ${mb(e.usage || 0)} of this phone's storage for the app.`; } catch {} }
 }
+// Download the chapters of a book that are recorded but not yet on this phone.
+async function saveBookAudio(b, voice, progress) {
+  const chapters = audioIndex[S.version][voice][b + 1].chapters, c = await caches.open(AUDIO_CACHE);
+  let added = 0;
+  for (const [i, ch] of chapters.entries()) {
+    if (progress) progress(i + 1, chapters.length);
+    if (await savedFile(c, b, ch, voice)) continue;
+    const turl = voxlyUrl(S.version, b, ch - 1, "json", voice);
+    const tr = await fetch(turl, { cache: "no-cache" }); if (!tr.ok) throw new Error(turl);
+    const timing = await tr.clone().json();
+    const aurl = voxlyUrl(S.version, b, ch - 1, audioExt(timing), voice);
+    const ar = await fetch(aurl, { cache: "no-cache" }); if (!ar.ok) throw new Error(aurl);
+    await c.put(aurl, ar); await c.put(turl, tr);   // the timing file last: it marks the chapter as saved
+    added++;
+  }
+  return added;
+}
+// Books saved on this phone take in newly recorded chapters by themselves (when the app is opened and online).
+let updatingAudio = null;
+async function updateSavedAudio(all = false, btn = null) {
+  if (updatingAudio || !navigator.onLine) return updatingAudio;
+  updatingAudio = (async () => {
+    let added = 0, books = 0;
+    try {
+      const idx = await loadAudioIndex(), voice = S.voxlyVoice, list = idx && idx[S.version] && idx[S.version][voice];
+      if (!list) return 0;
+      const todo = [];
+      for (const [bk, info] of Object.entries(list)) {
+        const b = +bk - 1, saved = await savedChapters(b, info.chapters, voice);
+        if (saved < info.chapters.length && (all || saved > 0)) todo.push(b);
+      }
+      for (const [i, b] of todo.entries()) {
+        const n = await saveBookAudio(b, voice, btn ? (k, of) => { btn.textContent = `Saving ${bookName(b)} ${k} of ${of} · book ${i + 1} of ${todo.length}`; } : null);
+        if (n) { added += n; books++; }
+      }
+    } catch { if (btn) toast("Saving stopped — check the connection or free some space, then try again"); }
+    finally { updatingAudio = null; }
+    if (added) toast(`${added} new Voxly chapter${added > 1 ? "s" : ""} saved on this phone`);
+    else if (btn) toast("All recorded audio is on this phone ✓");
+    if (currentView === "more") renderAudioBooks();
+    return added;
+  })();
+  return updatingAudio;
+}
+setTimeout(() => updateSavedAudio(), 8000);
+addEventListener("online", () => updateSavedAudio());
+document.addEventListener("visibilitychange", () => { if (!document.hidden) updateSavedAudio(); });
+$("#saveAllAudio").onclick = async (e) => {
+  const btn = e.currentTarget; btn.disabled = true;
+  await updateSavedAudio(true, btn);
+  btn.disabled = false; renderAudioBooks();
+};
+
 $("#audioBooks").onclick = async (e) => {
   const sv = e.target.closest("[data-save]"), un = e.target.closest("[data-unsave]");
   const voice = S.voxlyVoice;
   if (sv) {
-    const b = +sv.dataset.save, chapters = audioIndex[S.version][voice][b + 1].chapters;
+    const b = +sv.dataset.save;
     sv.disabled = true;
     try {
-      const c = await caches.open(AUDIO_CACHE);
-      for (const [i, ch] of chapters.entries()) {
-        sv.textContent = `Saving ${i + 1} of ${chapters.length}…`;
-        if (await savedFile(c, b, ch, voice)) continue;
-        const turl = voxlyUrl(S.version, b, ch - 1, "json", voice);
-        const tr = await fetch(turl, { cache: "no-cache" }); if (!tr.ok) throw new Error(turl);
-        const timing = await tr.clone().json();
-        const aurl = voxlyUrl(S.version, b, ch - 1, audioExt(timing), voice);
-        const ar = await fetch(aurl, { cache: "no-cache" }); if (!ar.ok) throw new Error(aurl);
-        await c.put(aurl, ar); await c.put(turl, tr);   // the timing file last: it marks the chapter as saved
-      }
+      await saveBookAudio(b, voice, (i, n) => { sv.textContent = `Saving ${i} of ${n}…`; });
       toast(`${bookName(b)} audio is saved on this phone`);
     } catch { toast("Saving stopped — check the connection or free some space, then tap Finish"); }
     renderAudioBooks();
